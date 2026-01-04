@@ -2,35 +2,109 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { Layout } from "./components/Layout";
 import Index from "./pages/Index";
 import CreatePost from "./pages/CreatePost";
 import LeadMagnet from "./pages/LeadMagnet";
 import PostLibrary from "./pages/PostLibrary";
 import ContentCalendar from "./pages/ContentCalendar";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+const ProtectedRoute = ({ element }: { element: React.ReactNode }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return element;
+};
+
+const AppRoutes = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
+
+  return (
+    <Routes>
+      {!user ? (
+        <>
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </>
+      ) : (
+        <>
+          <Route
+            path="/"
+            element={
+              <Layout>
+                <Index />
+              </Layout>
+            }
+          />
+          <Route
+            path="/create-post"
+            element={
+              <Layout>
+                <CreatePost />
+              </Layout>
+            }
+          />
+          <Route
+            path="/lead-magnet"
+            element={
+              <Layout>
+                <LeadMagnet />
+              </Layout>
+            }
+          />
+          <Route
+            path="/post-library"
+            element={
+              <Layout>
+                <PostLibrary />
+              </Layout>
+            }
+          />
+          <Route
+            path="/content-calendar"
+            element={
+              <Layout>
+                <ContentCalendar />
+              </Layout>
+            }
+          />
+          <Route path="*" element={<NotFound />} />
+        </>
+      )}
+    </Routes>
+  );
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/create-post" element={<CreatePost />} />
-            <Route path="/lead-magnet" element={<LeadMagnet />} />
-            <Route path="/post-library" element={<PostLibrary />} />
-            <Route path="/content-calendar" element={<ContentCalendar />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Layout>
-      </BrowserRouter>
-    </TooltipProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 

@@ -19,6 +19,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ContentService } from "@/lib/contentService";
+import { useAuth } from "@/contexts/AuthContext";
 
 // URL formatting utility function
 const formatUrl = (url: string) => {
@@ -59,6 +60,7 @@ const categories = ['Storytelling/Thought Leadership/Authority', 'Lead Magnets &
 const tones = ['Authoritative', 'Descriptive', 'Casual', 'Narrative', 'Humorous'];
 
 export default function CreatePost() {
+  const { profile } = useAuth();
   const [generatedPost, setGeneratedPost] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isResubmitting, setIsResubmitting] = useState(false);
@@ -67,7 +69,7 @@ export default function CreatePost() {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editedPost, setEditedPost] = useState("");
-  
+
   // Ask AI feature state
   const [askAiInput, setAskAiInput] = useState("");
   const [aiSuggestions, setAiSuggestions] = useState<Array<{title: string, topic: string, tone: string}>>([]);
@@ -361,11 +363,20 @@ export default function CreatePost() {
       return;
     }
 
+    if (!profile) {
+      toast({
+        title: "Profile Error",
+        description: "Unable to save post. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       const formData = form.getValues();
       const content = editMode ? editedPost : generatedPost;
-      
+
       const sourceData = {
         category: formData.category,
         topic: formData.topic,
@@ -383,7 +394,7 @@ export default function CreatePost() {
         original_content: generatedPost,
         platform: postPlatform,
         tags: selectedTags
-      });
+      }, profile.tenant_id);
 
       toast({
         title: "Saved to Library!",
@@ -424,11 +435,20 @@ export default function CreatePost() {
       return;
     }
 
+    if (!profile) {
+      toast({
+        title: "Profile Error",
+        description: "Unable to schedule post. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsScheduling(true);
     try {
       const formData = form.getValues();
       const content = editMode ? editedPost : generatedPost;
-      
+
       const sourceData = {
         category: formData.category,
         topic: formData.topic,
@@ -452,7 +472,7 @@ export default function CreatePost() {
         original_content: generatedPost,
         platform: postPlatform,
         tags: selectedTags
-      });
+      }, profile.tenant_id);
 
       toast({
         title: "Post Scheduled!",

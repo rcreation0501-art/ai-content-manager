@@ -2,11 +2,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { ContentPost, CreateContentPostRequest, UpdateContentPostRequest } from "@/types/content";
 
 export class ContentService {
-  static async createPost(data: CreateContentPostRequest): Promise<ContentPost> {
+  static async createPost(data: CreateContentPostRequest, tenantId: string): Promise<ContentPost> {
     const { data: result, error } = await supabase
       .from('content_posts')
       .insert([{
         ...data,
+        tenant_id: tenantId,
         edit_history: [],
         status: data.status || 'draft'
       }])
