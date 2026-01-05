@@ -1,4 +1,13 @@
-import { Calendar, Edit, Gift, Library, Home, LogOut, Building2 } from "lucide-react"
+import {
+  Calendar,
+  Edit,
+  Gift,
+  Library,
+  Home,
+  LogOut,
+  Building2,
+  Shield, // ✅ ADDED
+} from "lucide-react"
 import { NavLink, useLocation, useNavigate } from "react-router-dom"
 import { MilitaryLogo } from "./ui/ghost-logo"
 import { useAuth } from "@/contexts/AuthContext"
@@ -27,17 +36,19 @@ const items = [
 export function AppSidebar() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { tenant, user, signOut } = useAuth()
-  const currentPath = location.pathname
 
+  // ✅ UPDATED: include userRole
+  const { tenant, user, userRole, signOut } = useAuth()
+
+  const currentPath = location.pathname
   const isActive = (path: string) => currentPath === path
 
   const handleSignOut = async () => {
     try {
       await signOut()
-      navigate('/login')
+      navigate("/login")
     } catch (error) {
-      console.error('Sign out failed:', error)
+      console.error("Sign out failed:", error)
     }
   }
 
@@ -62,6 +73,7 @@ export function AppSidebar() {
           <SidebarGroupLabel className="text-red-400 uppercase tracking-wider text-sm font-bold">
             NAVIGATION MATRIX
           </SidebarGroupLabel>
+
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
@@ -79,17 +91,45 @@ export function AppSidebar() {
                     >
                       {({ isActive }) => (
                         <>
-                          <item.icon className={`h-5 w-5 ${isActive ? 'text-red-400 scale-110 drop-shadow-glow' : ''}`} />
-                          <span className="tracking-wide font-medium">{item.title}</span>
-                          {isActive && item.title === 'Create Post' && (
-                            <span className="w-2 h-2 bg-red-500 rounded-full ml-auto animate-pulse"></span>
-                          )}
+                          <item.icon
+                            className={`h-5 w-5 ${
+                              isActive
+                                ? "text-red-400 scale-110 drop-shadow-glow"
+                                : ""
+                            }`}
+                          />
+                          <span className="tracking-wide font-medium">
+                            {item.title}
+                          </span>
                         </>
                       )}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+
+              {/* ✅ ADMIN ONLY LINK */}
+              {userRole === "admin" && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/admin"
+                      className={({ isActive }) =>
+                        `flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-300 w-full futuristic-border glow-hover text-base font-medium tracking-wide ${
+                          isActive
+                            ? "bg-gradient-to-r from-red-600/30 to-red-700/30 text-red-300 border border-red-500/40"
+                            : "text-red-300 hover:bg-gradient-to-r hover:from-red-600/20 hover:to-red-700/20"
+                        }`
+                      }
+                    >
+                      <Shield className="h-5 w-5 text-red-400" />
+                      <span className="tracking-wide font-medium">
+                        Admin Panel
+                      </span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -105,7 +145,9 @@ export function AppSidebar() {
               <Building2 className="h-4 w-4 text-red-400" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{tenant.name}</p>
-                <p className="text-xs text-muted-foreground">{tenant.subscription_status}</p>
+                <p className="text-xs text-muted-foreground">
+                  {tenant.subscription_status}
+                </p>
               </div>
             </div>
           </div>
@@ -116,7 +158,9 @@ export function AppSidebar() {
             <div className="text-xs text-muted-foreground uppercase tracking-wider font-bold">
               Account
             </div>
-            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {user.email}
+            </p>
           </div>
         )}
 
