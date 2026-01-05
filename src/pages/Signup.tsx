@@ -2,7 +2,13 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -11,24 +17,38 @@ const Signup = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
   const navigate = useNavigate();
   const { signUp } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // 1️⃣ Basic validation
     if (password !== confirmPassword) {
       toast.error('Passwords do not match');
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error('Password must be at least 6 characters');
       return;
     }
 
     setLoading(true);
 
     try {
+      console.log('⏳ Calling Supabase signUp...');
       await signUp(email, password);
+      console.log('✅ Supabase signUp finished');
+
       toast.success('Account created successfully!');
+      // ❌ DO NOT navigate manually
+      // Auth listener will redirect automatically
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to sign up');
+      console.error('❌ Signup error:', error);
+      toast.error(error instanceof Error ? error.message : 'Signup failed');
+    } finally {
       setLoading(false);
     }
   };
@@ -40,6 +60,7 @@ const Signup = () => {
           <CardTitle>Create Account</CardTitle>
           <CardDescription>Sign up for Ghost Protocol</CardDescription>
         </CardHeader>
+
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -90,7 +111,9 @@ const Signup = () => {
           </form>
 
           <div className="mt-4 text-center text-sm">
-            <span className="text-muted-foreground">Already have an account? </span>
+            <span className="text-muted-foreground">
+              Already have an account?{' '}
+            </span>
             <Link to="/login" className="text-primary hover:underline">
               Sign in
             </Link>
