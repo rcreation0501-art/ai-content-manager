@@ -20,10 +20,8 @@ const Login = () => {
     try {
       await signIn(email, password);
       toast.success('Signed in successfully');
-      navigate('/');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to sign in');
-    } finally {
       setLoading(false);
     }
   };

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { authService, AuthUser, UserProfile, Tenant } from '@/lib/authService';
 
 interface AuthContextType {
@@ -16,10 +17,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const navigate = useNavigate();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
+  const hasRedirected = useRef(false);
 
   useEffect(() => {
     const unsubscribe = authService.onAuthStateChange(async (currentUser) => {
@@ -33,6 +36,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           if (userProfile) {
             const userTenant = await authService.getTenant(userProfile.tenant_id);
             setTenant(userTenant);
+
+            if (!hasRedirected.current) {
+              hasRedirected.current = true;
+              navigate('/', { replace: true });
+            }
           }
         } catch (error) {
           console.error('Failed to load user profile:', error);
@@ -42,13 +50,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       } else {
         setProfile(null);
         setTenant(null);
+        hasRedirected.current = false;
       }
 
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [navigate]);
 
   const signUp = async (email: string, password: string) => {
     await authService.signUp(email, password);

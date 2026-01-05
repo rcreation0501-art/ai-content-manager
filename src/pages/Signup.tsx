@@ -26,11 +26,9 @@ const Signup = () => {
 
     try {
       await signUp(email, password);
-      toast.success('Account created! Please sign in.');
-      navigate('/login');
+      toast.success('Account created successfully!');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to sign up');
-    } finally {
       setLoading(false);
     }
   };
