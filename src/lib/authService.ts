@@ -7,7 +7,7 @@ export interface AuthUser {
 
 export interface UserProfile {
   user_id: string;
-  tenant_id: string;
+  tenant_id: string | null;
   role: 'admin' | 'member' | 'viewer';
   created_at: string;
 }
@@ -53,12 +53,12 @@ export const authService = {
     };
   },
 
-  // ✅ FIXED: match profiles.id = auth.users.id
+  // ✅ CORRECT: profiles.user_id → auth.users.id
   getUserProfile: async (userId: string): Promise<UserProfile | null> => {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', userId) // ✅ THIS WAS THE BUG
+      .eq('user_id', userId)
       .maybeSingle();
 
     if (error) throw error;
@@ -78,7 +78,7 @@ export const authService = {
 
   onAuthStateChange: (callback: (user: AuthUser | null) => void) => {
     const { data } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      (_event, session) => {
         if (session?.user) {
           callback({
             id: session.user.id,
