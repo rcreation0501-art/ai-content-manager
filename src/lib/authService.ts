@@ -46,17 +46,19 @@ export const authService = {
   getCurrentUser: async (): Promise<AuthUser | null> => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) return null;
+
     return {
       id: data.user.id,
       email: data.user.email!,
     };
   },
 
+  // ✅ FIXED: match profiles.id = auth.users.id
   getUserProfile: async (userId: string): Promise<UserProfile | null> => {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('user_id', userId)
+      .eq('id', userId) // ✅ THIS WAS THE BUG
       .maybeSingle();
 
     if (error) throw error;
@@ -75,16 +77,18 @@ export const authService = {
   },
 
   onAuthStateChange: (callback: (user: AuthUser | null) => void) => {
-    const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        callback({
-          id: session.user.id,
-          email: session.user.email!,
-        });
-      } else {
-        callback(null);
+    const { data } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        if (session?.user) {
+          callback({
+            id: session.user.id,
+            email: session.user.email!,
+          });
+        } else {
+          callback(null);
+        }
       }
-    });
+    );
 
     return data.subscription.unsubscribe;
   },
