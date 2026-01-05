@@ -14,6 +14,7 @@ import ContentCalendar from "./pages/ContentCalendar";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
+import AdminPanel from "./pages/AdminPanel"; // ✅ STEP 6 import
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,7 @@ const AppRoutes = () => {
               </Layout>
             }
           />
+
           <Route
             path="/create-post"
             element={
@@ -54,6 +56,7 @@ const AppRoutes = () => {
               </Layout>
             }
           />
+
           <Route
             path="/lead-magnet"
             element={
@@ -62,6 +65,7 @@ const AppRoutes = () => {
               </Layout>
             }
           />
+
           <Route
             path="/post-library"
             element={
@@ -70,6 +74,7 @@ const AppRoutes = () => {
               </Layout>
             }
           />
+
           <Route
             path="/content-calendar"
             element={
@@ -78,6 +83,17 @@ const AppRoutes = () => {
               </Layout>
             }
           />
+
+          {/* ✅ STEP 7: ADMIN ROUTE */}
+          <Route
+            path="/admin"
+            element={
+              <Layout>
+                <AdminPanel />
+              </Layout>
+            }
+          />
+
           <Route path="*" element={<NotFound />} />
         </>
       )}
