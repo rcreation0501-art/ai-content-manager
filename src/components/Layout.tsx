@@ -17,7 +17,7 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
-  const { profile } = useAuth();
+  const { userRole } = useAuth(); // ✅ CHANGED
   const currentTitle = routeTitles[location.pathname] || "Content Hub";
 
   return (
@@ -27,7 +27,7 @@ export function Layout({ children }: LayoutProps) {
 
         <main className="flex-1 flex flex-col">
           <div className="flex-1 p-6">
-            {profile?.role === "admin" && (
+            {userRole === "admin" && (   // ✅ CHANGED
               <div className="mb-4">
                 <span className="inline-flex items-center rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-700">
                   ADMIN
