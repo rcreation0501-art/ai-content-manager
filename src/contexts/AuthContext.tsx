@@ -5,14 +5,14 @@ import React, {
   useState,
   useRef,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { authService, AuthUser, UserProfile, Tenant } from "@/lib/authService";
 
 interface AuthContextType {
   user: AuthUser | null;
   profile: UserProfile | null;
   tenant: Tenant | null;
-  userRole: "admin" | "member" | "viewer" | null; // ✅ ADDED
+  userRole: "admin" | "member" | "viewer" | null;
   loading: boolean;
   signUp: (email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
@@ -25,10 +25,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+
   const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
+
   const hasRedirected = useRef(false);
 
   useEffect(() => {
@@ -46,11 +49,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       try {
         const userProfile = await authService.getUserProfile(currentUser.id);
-
         console.log("AUTH PROFILE LOADED:", userProfile);
 
         if (!userProfile) {
-          console.warn("Profile missing for user:", currentUser.id);
           setProfile(null);
           setTenant(null);
           setLoading(false);
@@ -60,15 +61,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setProfile(userProfile);
 
         if (userProfile.tenant_id) {
-          const userTenant = await authService.getTenant(
-            userProfile.tenant_id
-          );
+          const userTenant = await authService.getTenant(userProfile.tenant_id);
           setTenant(userTenant);
         } else {
           setTenant(null);
         }
 
-        if (!hasRedirected.current) {
+        // ✅ SAFE REDIRECT (prevents 404)
+        if (
+          !hasRedirected.current &&
+          (location.pathname === "/login" ||
+            location.pathname === "/signup" ||
+            location.pathname === "/")
+        ) {
           hasRedirected.current = true;
           navigate("/", { replace: true });
         }
@@ -82,7 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     });
 
     return () => unsubscribe();
-  }, [navigate]);
+  }, [navigate, location.pathname]);
 
   const signUp = async (email: string, password: string) => {
     await authService.signUp(email, password);
@@ -106,7 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         user,
         profile,
         tenant,
-        userRole: profile?.role ?? null, // ✅ KEY FIX
+        userRole: profile?.role ?? null,
         loading,
         signUp,
         signIn,
