@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useRef,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { authService, AuthUser, UserProfile, Tenant } from "@/lib/authService";
 
@@ -6,6 +12,7 @@ interface AuthContextType {
   user: AuthUser | null;
   profile: UserProfile | null;
   tenant: Tenant | null;
+  userRole: "admin" | "member" | "viewer" | null; // ✅ ADDED
   loading: boolean;
   signUp: (email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
@@ -14,7 +21,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const navigate = useNavigate();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -51,7 +60,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfile(userProfile);
 
         if (userProfile.tenant_id) {
-          const userTenant = await authService.getTenant(userProfile.tenant_id);
+          const userTenant = await authService.getTenant(
+            userProfile.tenant_id
+          );
           setTenant(userTenant);
         } else {
           setTenant(null);
@@ -95,6 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         profile,
         tenant,
+        userRole: profile?.role ?? null, // ✅ KEY FIX
         loading,
         signUp,
         signIn,
