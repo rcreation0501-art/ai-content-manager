@@ -12,7 +12,6 @@ import NotFound from "@/pages/NotFound";
 
 export default function App() {
   return (
-    // ❌ REMOVED <BrowserRouter> and <AuthProvider> because they are already in main.tsx
     <Routes>
       {/* PUBLIC */}
       <Route path="/login" element={<Login />} />
@@ -24,8 +23,6 @@ export default function App() {
       <Route path="/lead-magnet" element={<Layout><LeadMagnet /></Layout>} />
       <Route path="/post-library" element={<Layout><PostLibrary /></Layout>} />
       <Route path="/content-calendar" element={<Layout><ContentCalendar /></Layout>} />
-      
-      {/* ADMIN */}
       <Route path="/admin" element={<Layout><AdminPanel /></Layout>} />
 
       {/* 404 */}
