@@ -1,10 +1,5 @@
-// src/App.tsx
-
 import { Routes, Route } from "react-router-dom";
-
 import { Layout } from "@/components/Layout";
-
-// pages
 import Index from "@/pages/Index";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
@@ -18,11 +13,11 @@ import NotFound from "@/pages/NotFound";
 export default function App() {
   return (
     <Routes>
-      {/* PUBLIC ROUTES */}
+      {/* PUBLIC */}
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
 
-      {/* PROTECTED ROUTES */}
+      {/* PROTECTED */}
       <Route
         path="/"
         element={
@@ -31,7 +26,6 @@ export default function App() {
           </Layout>
         }
       />
-
       <Route
         path="/create-post"
         element={
@@ -40,7 +34,6 @@ export default function App() {
           </Layout>
         }
       />
-
       <Route
         path="/lead-magnet"
         element={
@@ -49,7 +42,6 @@ export default function App() {
           </Layout>
         }
       />
-
       <Route
         path="/post-library"
         element={
@@ -58,7 +50,6 @@ export default function App() {
           </Layout>
         }
       />
-
       <Route
         path="/content-calendar"
         element={
@@ -67,7 +58,6 @@ export default function App() {
           </Layout>
         }
       />
-
       <Route
         path="/admin"
         element={
