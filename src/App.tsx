@@ -1,7 +1,10 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
+// src/App.tsx
+
+import { Routes, Route } from "react-router-dom";
+
 import { Layout } from "@/components/Layout";
 
+// pages
 import Index from "@/pages/Index";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
@@ -14,69 +17,68 @@ import NotFound from "@/pages/NotFound";
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <Routes>
-          {/* PUBLIC */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
+    <Routes>
+      {/* PUBLIC ROUTES */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
 
-          {/* PROTECTED */}
-          <Route
-            path="/"
-            element={
-              <Layout>
-                <Index />
-              </Layout>
-            }
-          />
-          <Route
-            path="/create-post"
-            element={
-              <Layout>
-                <CreatePost />
-              </Layout>
-            }
-          />
-          <Route
-            path="/lead-magnet"
-            element={
-              <Layout>
-                <LeadMagnet />
-              </Layout>
-            }
-          />
-          <Route
-            path="/post-library"
-            element={
-              <Layout>
-                <PostLibrary />
-              </Layout>
-            }
-          />
-          <Route
-            path="/content-calendar"
-            element={
-              <Layout>
-                <ContentCalendar />
-              </Layout>
-            }
-          />
+      {/* PROTECTED ROUTES */}
+      <Route
+        path="/"
+        element={
+          <Layout>
+            <Index />
+          </Layout>
+        }
+      />
 
-          {/* ✅ ADMIN ROUTE (THIS WAS MISSING) */}
-          <Route
-            path="/admin"
-            element={
-              <Layout>
-                <AdminPanel />
-              </Layout>
-            }
-          />
+      <Route
+        path="/create-post"
+        element={
+          <Layout>
+            <CreatePost />
+          </Layout>
+        }
+      />
 
-          {/* 404 */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </AuthProvider>
-    </BrowserRouter>
+      <Route
+        path="/lead-magnet"
+        element={
+          <Layout>
+            <LeadMagnet />
+          </Layout>
+        }
+      />
+
+      <Route
+        path="/post-library"
+        element={
+          <Layout>
+            <PostLibrary />
+          </Layout>
+        }
+      />
+
+      <Route
+        path="/content-calendar"
+        element={
+          <Layout>
+            <ContentCalendar />
+          </Layout>
+        }
+      />
+
+      <Route
+        path="/admin"
+        element={
+          <Layout>
+            <AdminPanel />
+          </Layout>
+        }
+      />
+
+      {/* 404 */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
 }
