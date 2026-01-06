@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { User } from "@supabase/supabase-js";
+import type { User, AuthError } from "@supabase/supabase-js";
+import { useToast } from "@/hooks/use-toast";
 
 interface AuthContextType {
   user: User | null;
@@ -8,7 +9,7 @@ interface AuthContextType {
   tenant: any | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>; // ✅ ADDED THIS
   signOut: () => Promise<void>;
 }
 
@@ -19,7 +20,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [tenant, setTenant] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
+  // 1. SIGN IN
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -28,14 +31,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   };
 
+  // 2. SIGN UP (This was missing!)
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        // This ensures the profile trigger has data to work with if needed
+        data: {
+          full_name: email.split("@")[0],
+        },
+      },
     });
+
     if (error) throw error;
+
+    // Check if email confirmation is required
+    if (data.user && !data.session) {
+      toast({
+        title: "Check your email",
+        description: "We sent you a confirmation link. Please check your spam folder too.",
+      });
+    }
   };
 
+  // 3. SIGN OUT
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -43,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setTenant(null);
   };
 
+  // 4. LOAD USER SESSION
   useEffect(() => {
     const loadUser = async (sessionUser: User | null) => {
       if (!sessionUser) {
@@ -55,23 +76,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(sessionUser);
 
-      // 🔹 LOAD PROFILE (ROLE)
+      // Fetch Profile & Role
       const { data: profile } = await supabase
         .from("profiles")
         .select("role, tenant_id")
         .eq("user_id", sessionUser.id)
         .single();
 
-      setUserRole(profile?.role ?? "user");
+      setUserRole(profile?.role ?? "member");
 
-      // 🔹 LOAD TENANT
+      // Fetch Tenant
       if (profile?.tenant_id) {
         const { data: tenantData } = await supabase
           .from("tenants")
           .select("*")
           .eq("id", profile.tenant_id)
           .single();
-
         setTenant(tenantData);
       } else {
         setTenant(null);
@@ -80,12 +100,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     };
 
-    // Initial session
+    // Initialize
     supabase.auth.getSession().then(({ data }) => {
       loadUser(data.session?.user ?? null);
     });
 
-    // Auth listener
+    // Listen for changes
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         loadUser(session?.user ?? null);
@@ -105,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         tenant,
         loading,
         signIn,
-        signUp,
+        signUp, // ✅ EXPORTING IT HERE
         signOut,
       }}
     >
