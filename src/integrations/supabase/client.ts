@@ -1,14 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 
+// Get env vars
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Log a clear warning if keys are missing
+// Log warning if missing
 if (!supabaseUrl || !supabaseKey) {
-  console.warn("⚠️ Supabase keys are missing! The app will load in preview mode.");
+  console.warn("⚠️ Supabase keys are missing! App loading in fallback mode.");
 }
 
-// Fallback to prevent crash
+// Create client with fallback values to prevent crash
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseKey || 'placeholder-key'
