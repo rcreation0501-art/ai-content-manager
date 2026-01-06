@@ -58,6 +58,8 @@ export default function App() {
           </Layout>
         }
       />
+      
+      {/* ADMIN ROUTE */}
       <Route
         path="/admin"
         element={
