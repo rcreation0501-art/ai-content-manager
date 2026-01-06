@@ -1,132 +1,93 @@
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useRef,
-} from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { authService, AuthUser, UserProfile, Tenant } from "@/lib/authService";
+import { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { User } from "@supabase/supabase-js";
 
 interface AuthContextType {
-  user: AuthUser | null;
-  profile: UserProfile | null;
-  tenant: Tenant | null;
-  userRole: "admin" | "member" | "viewer" | null;
+  user: User | null;
+  userRole: string | null;
+  tenant: any | null;
   loading: boolean;
-  signUp: (email: string, password: string) => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  userRole: null,
+  tenant: null,
+  loading: true,
+  signOut: async () => {},
+});
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [tenant, setTenant] = useState<Tenant | null>(null);
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [tenant, setTenant] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const hasRedirected = useRef(false);
-
   useEffect(() => {
-    const unsubscribe = authService.onAuthStateChange(async (currentUser) => {
+    const loadSession = async () => {
       setLoading(true);
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const currentUser = session?.user ?? null;
       setUser(currentUser);
 
-      if (!currentUser) {
-        setProfile(null);
-        setTenant(null);
-        hasRedirected.current = false;
-        setLoading(false);
-        return;
-      }
+      if (currentUser) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role, tenant_id")
+          .eq("user_id", currentUser.id)
+          .single();
 
-      try {
-        const userProfile = await authService.getUserProfile(currentUser.id);
-        console.log("AUTH PROFILE LOADED:", userProfile);
+        setUserRole(profile?.role ?? "user");
 
-        if (!userProfile) {
-          setProfile(null);
-          setTenant(null);
-          setLoading(false);
-          return;
-        }
+        if (profile?.tenant_id) {
+          const { data: tenantData } = await supabase
+            .from("tenants")
+            .select("*")
+            .eq("id", profile.tenant_id)
+            .single();
 
-        setProfile(userProfile);
-
-        if (userProfile.tenant_id) {
-          const userTenant = await authService.getTenant(userProfile.tenant_id);
-          setTenant(userTenant);
+          setTenant(tenantData ?? null);
         } else {
           setTenant(null);
         }
-
-        // ✅ SAFE REDIRECT (prevents 404)
-        if (
-          !hasRedirected.current &&
-          (location.pathname === "/login" ||
-            location.pathname === "/signup" ||
-            location.pathname === "/")
-        ) {
-          hasRedirected.current = true;
-          navigate("/", { replace: true });
-        }
-      } catch (error) {
-        console.error("Failed to load auth context:", error);
-        setProfile(null);
+      } else {
+        setUserRole(null);
         setTenant(null);
-      } finally {
-        setLoading(false);
       }
+
+      setLoading(false);
+    };
+
+    loadSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      loadSession();
     });
 
-    return () => unsubscribe();
-  }, [navigate, location.pathname]);
-
-  const signUp = async (email: string, password: string) => {
-    await authService.signUp(email, password);
-  };
-
-  const signIn = async (email: string, password: string) => {
-    await authService.signIn(email, password);
-  };
+    return () => subscription.unsubscribe();
+  }, []);
 
   const signOut = async () => {
-    await authService.signOut();
+    await supabase.auth.signOut();
     setUser(null);
-    setProfile(null);
+    setUserRole(null);
     setTenant(null);
-    hasRedirected.current = false;
   };
 
   return (
     <AuthContext.Provider
-      value={{
-        user,
-        profile,
-        tenant,
-        userRole: profile?.role ?? null,
-        loading,
-        signUp,
-        signIn,
-        signOut,
-      }}
+      value={{ user, userRole, tenant, loading, signOut }}
     >
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-};
+export const useAuth = () => useContext(AuthContext);
