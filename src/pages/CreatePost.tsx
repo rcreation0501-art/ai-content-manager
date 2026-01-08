@@ -163,8 +163,8 @@ export default function CreatePost() {
     
     setIsGenerating(true);
     try {
-      // CHANGED: Using "gemini-pro" instead of "gemini-1.5-flash"
-      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+      // Reverted to gemini-1.5-flash as Key should be active now
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const prompt = `
       Act as a professional LinkedIn content creator.
@@ -196,7 +196,7 @@ export default function CreatePost() {
       console.error("❌ Error generating post:", error);
       toast({
         title: "Generation Failed",
-        description: error.message || "Failed to generate post. Please try again.",
+        description: "AI Model not responding. Please wait 1 minute and try again.",
         variant: "destructive"
       });
     } finally {
@@ -218,8 +218,7 @@ export default function CreatePost() {
     
     setIsResubmitting(true);
     try {
-      // CHANGED: Using "gemini-pro" instead of "gemini-1.5-flash"
-      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const prompt = `
       I need you to rewrite the following LinkedIn post based on specific feedback.
@@ -503,8 +502,7 @@ export default function CreatePost() {
     
     setIsLoadingAiSuggestions(true);
     try {
-      // CHANGED: Using "gemini-pro" instead of "gemini-1.5-flash"
-      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       
       const prompt = `
       I need 3 LinkedIn post ideas for the category "${category}".
