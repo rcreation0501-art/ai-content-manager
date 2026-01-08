@@ -82,7 +82,7 @@ export function AppSidebar() {
       <Sidebar className="w-64 border-r border-border flex flex-col">
         <SidebarHeader className="p-6 border-b border-border">
           {/* LOGO AREA */}
-          <div className="flex items-center space-x-2 mb-4">
+          <div className="flex items-center space-x-2">
             <MilitaryLogo size="md" />
             <div>
               <h1 className="font-mono font-bold text-lg text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-red-600">
@@ -91,19 +91,6 @@ export function AppSidebar() {
               <p className="text-sm text-muted-foreground">LEAD MAGNET AI</p>
             </div>
           </div>
-
-          {/* 🚨 DEBUG BOX: TELLS US EXACTLY WHO IS LOGGED IN 🚨 */}
-          <div className="p-3 bg-red-900/20 border border-red-500/50 rounded-lg text-xs">
-             <p className="font-bold text-red-400 mb-1 flex items-center gap-2">
-               🔍 DIAGNOSTIC MODE
-             </p>
-             <div className="space-y-1 text-gray-300">
-               <p><strong>User:</strong> {user ? '✅ Active' : '❌ None'}</p>
-               <p><strong>Email:</strong> <span className="text-yellow-400">{user?.email || 'No Email Found'}</span></p>
-               <p className="break-all text-[10px] opacity-70"><strong>ID:</strong> {user?.id || '...'}</p>
-             </div>
-          </div>
-
         </SidebarHeader>
 
         <SidebarContent className="flex-1">
