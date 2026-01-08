@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '../integrations/supabase/client'; // ✅ Fixed Import Path
+import { useState } from 'react';
 
 interface PricingModalProps {
   user: any;
@@ -8,41 +7,28 @@ interface PricingModalProps {
 
 export default function PricingModal({ user, onClose }: PricingModalProps) {
   const [isIndia, setIsIndia] = useState(true);
-  const [links, setLinks] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // 1. Fetch the correct links from your database
-    async function loadLinks() {
-      try {
-        const { data, error } = await supabase
-          .from('plans')
-          .select('instamojo_link, global_link')
-          .eq('id', 'pro_monthly')
-          .single();
-        
-        if (error) console.error('Error fetching plans:', error);
-        if (data) setLinks(data);
-      } catch (err) {
-        console.error('Failed to load plan links', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadLinks();
-  }, []);
+  // ✅ HARDCODED LINKS (Bypassing Database completely)
+  const INSTAMOJO_LINK = "https://aiforfuture.mojo.page/pro-plan-linkedin-ai-posting";
+  const RAZORPAY_LINK = "https://rzp.io/rzp/iBZbWDT";
 
   const handleSubscribe = () => {
-    if (!links) return;
+    // 1. Get Email safely
+    const userEmail = user?.email || "";
+
+    let finalUrl = "";
 
     if (isIndia) {
-      // 🇮🇳 INDIA -> Instamojo (Pre-fill Email)
-      // We append data_email so Instamojo knows who paid
-      window.location.href = `${links.instamojo_link}?data_email=${user.email}&data_name=${user.email}`;
+      // 🇮🇳 INDIA -> Instamojo
+      finalUrl = `${INSTAMOJO_LINK}?data_email=${userEmail}&data_name=${userEmail}`;
     } else {
-      // 🌍 GLOBAL -> Razorpay (Pre-fill Email)
-      // Razorpay Payment Pages use 'email' param
-      window.location.href = `${links.global_link}?email=${user.email}`;
+      // 🌍 GLOBAL -> Razorpay
+      finalUrl = `${RAZORPAY_LINK}?email=${userEmail}`;
+    }
+
+    // 2. Open in New Tab
+    if (finalUrl) {
+      window.open(finalUrl, '_blank'); 
     }
   };
 
@@ -97,15 +83,13 @@ export default function PricingModal({ user, onClose }: PricingModalProps) {
           {/* Action Button */}
           <button
             onClick={handleSubscribe}
-            disabled={!links || loading}
             className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 ${
-              loading ? 'bg-gray-400 cursor-not-allowed' :
               isIndia 
                 ? 'bg-gradient-to-r from-blue-600 to-blue-500' 
                 : 'bg-gradient-to-r from-purple-600 to-indigo-600'
             }`}
           >
-            {loading ? 'Loading Options...' : isIndia ? 'Pay with Instamojo' : 'Pay with Razorpay'}
+            {isIndia ? 'Pay with Instamojo' : 'Pay with Razorpay'}
           </button>
           
           <p className="text-xs text-center text-gray-400 mt-4">
