@@ -163,7 +163,8 @@ export default function CreatePost() {
     
     setIsGenerating(true);
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      // CHANGED: Using "gemini-pro" instead of "gemini-1.5-flash"
+      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
       const prompt = `
       Act as a professional LinkedIn content creator.
@@ -217,7 +218,8 @@ export default function CreatePost() {
     
     setIsResubmitting(true);
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      // CHANGED: Using "gemini-pro" instead of "gemini-1.5-flash"
+      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
       const prompt = `
       I need you to rewrite the following LinkedIn post based on specific feedback.
@@ -501,7 +503,8 @@ export default function CreatePost() {
     
     setIsLoadingAiSuggestions(true);
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      // CHANGED: Using "gemini-pro" instead of "gemini-1.5-flash"
+      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
       
       const prompt = `
       I need 3 LinkedIn post ideas for the category "${category}".
