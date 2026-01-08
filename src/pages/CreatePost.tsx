@@ -22,8 +22,7 @@ import { ContentService } from "@/lib/contentService";
 import { useAuth } from "@/contexts/AuthContext";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// ✅ YOUR NEW FRESH KEY IS HERE
-// Note: We are using this directly because the CLI tool failed.
+// ✅ YOUR FRESH KEY
 const GEN_AI_KEY = "AIzaSyALpbwph9olK72RMmucp4Qd0BEHFM4S4iU"; 
 const genAI = new GoogleGenerativeAI(GEN_AI_KEY);
 
@@ -164,8 +163,8 @@ export default function CreatePost() {
     
     setIsGenerating(true);
     try {
-      // Using standard 1.5 flash model
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      // ✅ FIX APPLIED: Using 'models/' prefix
+      const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
 
       const prompt = `
       Act as a professional LinkedIn content creator.
@@ -219,7 +218,8 @@ export default function CreatePost() {
     
     setIsResubmitting(true);
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      // ✅ FIX APPLIED: Using 'models/' prefix
+      const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
 
       const prompt = `
       I need you to rewrite the following LinkedIn post based on specific feedback.
@@ -503,8 +503,8 @@ export default function CreatePost() {
     
     setIsLoadingAiSuggestions(true);
     try {
-      // Using standard 1.5 flash model
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      // ✅ FIX APPLIED: Using 'models/' prefix
+      const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
       
       const prompt = `
       I need 3 LinkedIn post ideas for the category "${category}".
@@ -555,6 +555,7 @@ export default function CreatePost() {
     // Auto-fill the form fields but stay in "Ask AI" mode
     form.setValue("topic", suggestion.topic);
     form.setValue("tone", suggestion.tone);
+    // Do NOT switch topicType back to "text" - stay in "askAI" mode
     
     toast({
       title: "Fields Auto-filled!",
@@ -665,6 +666,7 @@ export default function CreatePost() {
                             >
                               <div className="text-center">
                                 <div className="font-medium">Text Input</div>
+                                {/* <div className="text-[10px] opacity-70">Direct entry</div> */}
                               </div>
                             </ToggleGroupItem>
                             <ToggleGroupItem
@@ -673,6 +675,7 @@ export default function CreatePost() {
                             >
                               <div className="text-center">
                                 <div className="font-medium">Ask AI</div>
+                                {/* <div className="text-[10px] opacity-70">AI suggestions</div> */}
                               </div>
                             </ToggleGroupItem>
                             <ToggleGroupItem
@@ -681,6 +684,7 @@ export default function CreatePost() {
                             >
                               <div className="text-center">
                                 <div className="font-medium">URL Input</div>
+                                {/* <div className="text-[10px] opacity-70">Analyze content</div> */}
                               </div>
                             </ToggleGroupItem>
                           </ToggleGroup>
