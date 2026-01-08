@@ -20,13 +20,15 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ContentService } from "@/lib/contentService";
 import { useAuth } from "@/contexts/AuthContext";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// Initialize Gemini AI with your Hard-Coded Key
+const GEN_AI_KEY = "AIzaSyC6OaLVBxCG4UzNNrcxHeFbwrZcLzhcVcw"; 
+const genAI = new GoogleGenerativeAI(GEN_AI_KEY);
 
 // URL formatting utility function
 const formatUrl = (url: string) => {
-  // Remove extra spaces and trim
   let formatted = url.trim().replace(/\s+/g, '');
-
-  // Add https:// if no protocol is specified
   if (formatted && !formatted.match(/^https?:\/\//i)) {
     formatted = `https://${formatted}`;
   }
@@ -86,19 +88,6 @@ export default function CreatePost() {
   const [isSaving, setIsSaving] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
   const [selectedTime, setSelectedTime] = useState("12:00");
-  
-  const webhookUrl = import.meta.env.VITE_WEBHOOK_URL;
-  const askAiWebhookUrl = import.meta.env.VITE_ASK_AI_WEBHOOK_URL;
-  
-  // Debug: Log webhook URLs to console
-  console.log("🔍 Debug Info:");
-  console.log("Main Webhook URL:", webhookUrl);
-  console.log("Ask AI Webhook URL:", askAiWebhookUrl);
-  console.log("Environment check:", {
-    NODE_ENV: import.meta.env.NODE_ENV,
-    MODE: import.meta.env.MODE,
-    DEV: import.meta.env.DEV
-  });
 
   const { toast } = useToast();
   
@@ -143,16 +132,13 @@ export default function CreatePost() {
   };
 
   const onSubmit = async (data: FormData) => {
-    console.log("🚀 Form submission started");
-    console.log("Form data:", data);
-    console.log("Webhook URL being used:", webhookUrl);
+    console.log("🚀 Generation started with Gemini");
     
-    // Check if webhook URL is defined
-    if (!webhookUrl) {
-      console.error("❌ Webhook URL is not defined!");
+    // Check if API key is defined
+    if (!GEN_AI_KEY) {
       toast({
         title: "Configuration Error",
-        description: "Webhook URL is not configured. Please check your environment variables.",
+        description: "Gemini API Key is missing.",
         variant: "destructive"
       });
       return;
@@ -172,68 +158,44 @@ export default function CreatePost() {
         return;
       }
     } else if (data.topicType === "askai") {
-      // Treat "askai" as "text" for the final submission since fields are auto-filled
       finalTopicType = "text";
     }
     
     setIsGenerating(true);
     try {
-      const requestPayload = {
-        action: "generate",
-        category: data.category,
-        topic: processedTopic,
-        topicType: finalTopicType,
-        tone: data.tone
-      };
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const prompt = `
+      Act as a professional LinkedIn content creator.
       
-      console.log("📤 Sending request to webhook:");
-      console.log("URL:", webhookUrl);
-      console.log("Payload:", requestPayload);
+      Task: Write a high-quality, engaging LinkedIn post.
+      Category: ${data.category}
+      Tone: ${data.tone}
+      Topic/Context: ${processedTopic}
+      ${data.topicType === 'url' ? '(Note: The topic provided is a URL. Please create a post based on the likely subject matter of this link/topic.)' : ''}
+
+      Requirements:
+      - Use appropriate spacing for readability.
+      - Include a catchy hook in the first line.
+      - Use relevant emojis.
+      - End with a call to action.
+      `;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
       
-      const response = await fetch(webhookUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestPayload)
-      });
-      
-      console.log("📥 Response received:");
-      console.log("Status:", response.status);
-      console.log("Status Text:", response.statusText);
-      console.log("Headers:", Object.fromEntries(response.headers.entries()));
-      
-      if (!response.ok) {
-        console.error("❌ Response not OK:", {
-          status: response.status,
-          statusText: response.statusText,
-          url: response.url
-        });
-        throw new Error("Failed to generate post");
-      }
-      
-      const result = await response.json();
-      console.log("✅ Parsed response:", result);
-      
-      setGeneratedPost(result.content || "Generated post content will appear here...");
-      setEditedPost(result.content || "");
+      setGeneratedPost(text || "Generated post content will appear here...");
+      setEditedPost(text || "");
       toast({
         title: "Post Generated Successfully!",
         description: "Your LinkedIn post is ready to review"
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("❌ Error generating post:", error);
-      console.error("Error details:", {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-        cause: error.cause
-      });
-      
-      // Additional network debugging
       toast({
         title: "Generation Failed",
-        description: "Failed to generate post. Please check your webhook URL and try again.",
+        description: error.message || "Failed to generate post. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -253,47 +215,28 @@ export default function CreatePost() {
       return;
     }
     
-    if (!webhookUrl) {
-      console.error("❌ Webhook URL is not defined for resubmit!");
-      toast({
-        title: "Configuration Error",
-        description: "Webhook URL is not configured. Please check your environment variables.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
     setIsResubmitting(true);
     try {
-      const requestPayload = {
-        action: "regenerate",
-        originalRequest: form.getValues(),
-        generatedContent: generatedPost,
-        changeRequest: changeRequest
-      };
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const prompt = `
+      I need you to rewrite the following LinkedIn post based on specific feedback.
+
+      Original Post:
+      "${editMode ? editedPost : generatedPost}"
+
+      User Feedback/Change Request:
+      "${changeRequest}"
+
+      Please provide the rewritten post only. Maintain professional LinkedIn formatting.
+      `;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
       
-      const response = await fetch(webhookUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestPayload)
-      });
-      
-      console.log("📥 Resubmit response:", {
-        status: response.status,
-        statusText: response.statusText
-      });
-      
-      if (!response.ok) {
-        throw new Error("Failed to resubmit");
-      }
-      
-      const result = await response.json();
-      console.log("✅ Resubmit result:", result);
-      
-      setGeneratedPost(result.content || "Updated post content will appear here...");
-      setEditedPost(result.content || "");
+      setGeneratedPost(text || "Updated post content will appear here...");
+      setEditedPost(text || "");
       setChangeRequest("");
       toast({
         title: "Post Updated Successfully!",
@@ -535,7 +478,7 @@ export default function CreatePost() {
 
   // Ask AI functionality
   const handleAskAI = async () => {
-    console.log("🤖 Ask AI started");
+    console.log("🤖 Ask AI started with Gemini");
     
     if (!askAiInput.trim()) {
       toast({
@@ -555,44 +498,37 @@ export default function CreatePost() {
       });
       return;
     }
-
-    if (!askAiWebhookUrl) {
-      console.error("❌ Ask AI Webhook URL is not defined!");
-      toast({
-        title: "Configuration Error",
-        description: "Ask AI Webhook URL is not configured. Please check your environment variables.",
-        variant: "destructive"
-      });
-      return;
-    }
     
     setIsLoadingAiSuggestions(true);
     try {
-      const response = await fetch(askAiWebhookUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          action: "suggest_topics",
-          category: category,
-          description: askAiInput
-        })
-      });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      
+      const prompt = `
+      I need 3 LinkedIn post ideas for the category "${category}".
+      User Context/Description: "${askAiInput}"
 
-      if (!response.ok) {
-        console.error("❌ Ask AI response not OK:", {
-          status: response.status,
-          statusText: response.statusText
-        });
-        throw new Error("Failed to get AI suggestions");
+      Return strictly valid JSON with this exact structure (no markdown formatting):
+      {
+        "ideas": [
+          {
+            "title": "Short catchy title",
+            "topic": "The detailed topic prompt to use for generation",
+            "tone": "Suggested tone"
+          }
+        ]
       }
+      `;
 
-      const result = await response.json();
-      console.log("AI webhook response:", result); // Debug log
-      // Parse the simplified webhook response structure: {"ideas": [...]}
-      const suggestions = result?.ideas || [];
-      console.log("Extracted suggestions:", suggestions); // Debug log
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      let text = response.text();
+      
+      // Clean up markdown code blocks if Gemini adds them
+      text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      
+      const data = JSON.parse(text);
+      const suggestions = data?.ideas || [];
+      
       setAiSuggestions(suggestions);
       setShowSuggestionDropdown(true);
       
@@ -659,7 +595,7 @@ export default function CreatePost() {
             Create LinkedIn Posts
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Generate engaging, professional LinkedIn content that resonates with your audience using advanced AI
+            Generate engaging, professional LinkedIn content that resonates with your audience using Gemini AI
           </p>
         </div>
 
