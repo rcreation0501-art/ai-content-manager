@@ -8,8 +8,8 @@ import {
   LogOut,
   Shield,
   Sparkles,
-  Clock, // ✨ Icon for time
-  AlertTriangle // ✨ Icon for expired
+  Clock,
+  AlertTriangle,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { MilitaryLogo } from "./ui/ghost-logo";
@@ -56,18 +56,17 @@ export function AppSidebar() {
       
       setDaysLeft(diffDays);
       
-      // If expired, we mark it
       if (diffDays <= 0) {
         setIsExpired(true);
       }
     }
   }, [user]);
 
-  // 🔒 FORCE UPGRADE: If expired, automatically open the modal when they try to click anything
+  // 🔒 FORCE UPGRADE: If expired, automatically open the modal
   const handleRestrictedClick = (e: any) => {
     if (isExpired) {
-      e.preventDefault(); // Stop navigation
-      setShowPricing(true); // Open Paywall
+      e.preventDefault();
+      setShowPricing(true);
     }
   };
 
@@ -82,7 +81,8 @@ export function AppSidebar() {
     <>
       <Sidebar className="w-64 border-r border-border flex flex-col">
         <SidebarHeader className="p-6 border-b border-border">
-          <div className="flex items-center space-x-2">
+          {/* LOGO AREA */}
+          <div className="flex items-center space-x-2 mb-4">
             <MilitaryLogo size="md" />
             <div>
               <h1 className="font-mono font-bold text-lg text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-red-600">
@@ -91,6 +91,19 @@ export function AppSidebar() {
               <p className="text-sm text-muted-foreground">LEAD MAGNET AI</p>
             </div>
           </div>
+
+          {/* 🚨 DEBUG BOX: TELLS US EXACTLY WHO IS LOGGED IN 🚨 */}
+          <div className="p-3 bg-red-900/20 border border-red-500/50 rounded-lg text-xs">
+             <p className="font-bold text-red-400 mb-1 flex items-center gap-2">
+               🔍 DIAGNOSTIC MODE
+             </p>
+             <div className="space-y-1 text-gray-300">
+               <p><strong>User:</strong> {user ? '✅ Active' : '❌ None'}</p>
+               <p><strong>Email:</strong> <span className="text-yellow-400">{user?.email || 'No Email Found'}</span></p>
+               <p className="break-all text-[10px] opacity-70"><strong>ID:</strong> {user?.id || '...'}</p>
+             </div>
+          </div>
+
         </SidebarHeader>
 
         <SidebarContent className="flex-1">
@@ -104,7 +117,7 @@ export function AppSidebar() {
                     <SidebarMenuButton 
                       asChild 
                       isActive={location.pathname === item.url}
-                      onClick={handleRestrictedClick} // 🔒 Checks for expiry on click
+                      onClick={handleRestrictedClick}
                     >
                       <NavLink to={item.url}>
                         <item.icon className="h-5 w-5" />
@@ -113,6 +126,17 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
+
+                {userRole === "admin" && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink to="/admin">
+                        <Shield className="h-5 w-5 text-red-500" />
+                        <span className="text-red-500">Admin Panel</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -152,7 +176,7 @@ export function AppSidebar() {
             onClick={() => setShowPricing(true)}
             className={`w-full text-white border-0 shadow-lg ${
               isExpired 
-                ? 'bg-red-600 hover:bg-red-700 animate-pulse' // Pulsing Red if Expired
+                ? 'bg-red-600 hover:bg-red-700 animate-pulse'
                 : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500'
             }`}
           >
@@ -167,6 +191,9 @@ export function AppSidebar() {
             </div>
           )}
 
+          {/* User Email Display at Bottom */}
+          {user && <p className="text-xs text-muted-foreground truncate">{user.email}</p>}
+
           <Button onClick={handleSignOut} variant="outline" className="w-full justify-start">
             <LogOut className="h-4 w-4 mr-2" />
             Sign Out
@@ -178,7 +205,7 @@ export function AppSidebar() {
       {showPricing && (
         <PricingModal 
           user={user} 
-          onClose={() => !isExpired && setShowPricing(false)} // Cannot close if expired!
+          onClose={() => !isExpired && setShowPricing(false)} 
         />
       )}
     </>
