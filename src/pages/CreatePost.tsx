@@ -22,8 +22,9 @@ import { ContentService } from "@/lib/contentService";
 import { useAuth } from "@/contexts/AuthContext";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Initialize Gemini AI with your Hard-Coded Key
-const GEN_AI_KEY = "AIzaSyC6OaLVBxCG4UzNNrcxHeFbwrZcLzhcVcw"; 
+// ✅ YOUR NEW FRESH KEY IS HERE
+// Note: We are using this directly because the CLI tool failed.
+const GEN_AI_KEY = "AIzaSyALpbwph9olK72RMmucp4Qd0BEHFM4S4iU"; 
 const genAI = new GoogleGenerativeAI(GEN_AI_KEY);
 
 // URL formatting utility function
@@ -163,7 +164,7 @@ export default function CreatePost() {
     
     setIsGenerating(true);
     try {
-      // Reverted to gemini-1.5-flash as Key should be active now
+      // Using standard 1.5 flash model
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const prompt = `
@@ -196,7 +197,7 @@ export default function CreatePost() {
       console.error("❌ Error generating post:", error);
       toast({
         title: "Generation Failed",
-        description: "AI Model not responding. Please wait 1 minute and try again.",
+        description: error.message || "Failed to generate post. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -502,6 +503,7 @@ export default function CreatePost() {
     
     setIsLoadingAiSuggestions(true);
     try {
+      // Using standard 1.5 flash model
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       
       const prompt = `
@@ -553,7 +555,6 @@ export default function CreatePost() {
     // Auto-fill the form fields but stay in "Ask AI" mode
     form.setValue("topic", suggestion.topic);
     form.setValue("tone", suggestion.tone);
-    // Do NOT switch topicType back to "text" - stay in "askAI" mode
     
     toast({
       title: "Fields Auto-filled!",
@@ -664,7 +665,6 @@ export default function CreatePost() {
                             >
                               <div className="text-center">
                                 <div className="font-medium">Text Input</div>
-                                {/* <div className="text-[10px] opacity-70">Direct entry</div> */}
                               </div>
                             </ToggleGroupItem>
                             <ToggleGroupItem
@@ -673,7 +673,6 @@ export default function CreatePost() {
                             >
                               <div className="text-center">
                                 <div className="font-medium">Ask AI</div>
-                                {/* <div className="text-[10px] opacity-70">AI suggestions</div> */}
                               </div>
                             </ToggleGroupItem>
                             <ToggleGroupItem
@@ -682,7 +681,6 @@ export default function CreatePost() {
                             >
                               <div className="text-center">
                                 <div className="font-medium">URL Input</div>
-                                {/* <div className="text-[10px] opacity-70">Analyze content</div> */}
                               </div>
                             </ToggleGroupItem>
                           </ToggleGroup>
