@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../integrations/supabase/client'; // ✅ Fixed Import Path
 
 interface PricingModalProps {
   user: any;
@@ -36,12 +36,12 @@ export default function PricingModal({ user, onClose }: PricingModalProps) {
     if (!links) return;
 
     if (isIndia) {
-      // 🇮🇳 INDIA -> Instamojo
-      // We send user email to Instamojo for tracking
+      // 🇮🇳 INDIA -> Instamojo (Pre-fill Email)
+      // We append data_email so Instamojo knows who paid
       window.location.href = `${links.instamojo_link}?data_email=${user.email}&data_name=${user.email}`;
     } else {
-      // 🌍 GLOBAL -> Razorpay
-      // We send user email to Razorpay
+      // 🌍 GLOBAL -> Razorpay (Pre-fill Email)
+      // Razorpay Payment Pages use 'email' param
       window.location.href = `${links.global_link}?email=${user.email}`;
     }
   };
@@ -81,7 +81,7 @@ export default function PricingModal({ user, onClose }: PricingModalProps) {
             </div>
           </div>
 
-          {/* Price Display (UPDATED) */}
+          {/* Price Display */}
           <div className="text-center mb-8">
             <div className="flex justify-center items-baseline">
               <span className="text-5xl font-black text-gray-900">
