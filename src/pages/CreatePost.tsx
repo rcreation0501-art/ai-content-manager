@@ -20,11 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ContentService } from "@/lib/contentService";
 import { useAuth } from "@/contexts/AuthContext";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-// ✅ YOUR FRESH KEY
-const GEN_AI_KEY = "AIzaSyALpbwph9olK72RMmucp4Qd0BEHFM4S4iU"; 
-const genAI = new GoogleGenerativeAI(GEN_AI_KEY);
+import { supabase } from "@/integrations/supabase/client";
 
 // URL formatting utility function
 const formatUrl = (url: string) => {
@@ -90,7 +86,7 @@ export default function CreatePost() {
   const [selectedTime, setSelectedTime] = useState("12:00");
 
   const { toast } = useToast();
-  
+
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -132,21 +128,11 @@ export default function CreatePost() {
   };
 
   const onSubmit = async (data: FormData) => {
-    console.log("🚀 Generation started with Gemini");
-    
-    // Check if API key is defined
-    if (!GEN_AI_KEY) {
-      toast({
-        title: "Configuration Error",
-        description: "Gemini API Key is missing.",
-        variant: "destructive"
-      });
-      return;
-    }
+    console.log("🚀 Generation started with Gemini Edge Function");
 
     let processedTopic = data.topic;
     let finalTopicType = data.topicType;
-    
+
     if (data.topicType === "url") {
       processedTopic = formatUrl(data.topic);
       if (!isValidUrl(data.topic)) {
@@ -160,34 +146,25 @@ export default function CreatePost() {
     } else if (data.topicType === "askai") {
       finalTopicType = "text";
     }
-    
+
     setIsGenerating(true);
     try {
-      // ✅ FIX APPLIED: Using 'models/' prefix
-      const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
+      const { data: responseData, error } = await supabase.functions.invoke('generate-post', {
+        body: {
+          prompt: processedTopic,
+          topic: processedTopic,
+          tone: data.tone,
+          category: data.category,
+          type: 'generate'
+        }
+      });
 
-      const prompt = `
-      Act as a professional LinkedIn content creator.
-      
-      Task: Write a high-quality, engaging LinkedIn post.
-      Category: ${data.category}
-      Tone: ${data.tone}
-      Topic/Context: ${processedTopic}
-      ${data.topicType === 'url' ? '(Note: The topic provided is a URL. Please create a post based on the likely subject matter of this link/topic.)' : ''}
+      if (error) throw error;
 
-      Requirements:
-      - Use appropriate spacing for readability.
-      - Include a catchy hook in the first line.
-      - Use relevant emojis.
-      - End with a call to action.
-      `;
+      const text = responseData?.content || "Generated post content will appear here...";
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-      
-      setGeneratedPost(text || "Generated post content will appear here...");
-      setEditedPost(text || "");
+      setGeneratedPost(text);
+      setEditedPost(text);
       toast({
         title: "Post Generated Successfully!",
         description: "Your LinkedIn post is ready to review"
@@ -206,7 +183,7 @@ export default function CreatePost() {
 
   const handleResubmit = async () => {
     console.log("🔄 Resubmit started");
-    
+
     if (!changeRequest.trim()) {
       toast({
         title: "Change Request Required",
@@ -215,30 +192,38 @@ export default function CreatePost() {
       });
       return;
     }
-    
+
     setIsResubmitting(true);
     try {
-      // ✅ FIX APPLIED: Using 'models/' prefix
-      const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
+      const currentPost = editMode ? editedPost : generatedPost;
+      const formData = form.getValues();
 
-      const prompt = `
-      I need you to rewrite the following LinkedIn post based on specific feedback.
+      const refinementPrompt = `I need you to rewrite the following LinkedIn post based on specific feedback.
 
-      Original Post:
-      "${editMode ? editedPost : generatedPost}"
+Original Post:
+"${currentPost}"
 
-      User Feedback/Change Request:
-      "${changeRequest}"
+User Feedback/Change Request:
+"${changeRequest}"
 
-      Please provide the rewritten post only. Maintain professional LinkedIn formatting.
-      `;
+Please provide the rewritten post only. Maintain professional LinkedIn formatting.`;
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-      
-      setGeneratedPost(text || "Updated post content will appear here...");
-      setEditedPost(text || "");
+      const { data: responseData, error } = await supabase.functions.invoke('generate-post', {
+        body: {
+          prompt: refinementPrompt,
+          topic: refinementPrompt,
+          tone: formData.tone,
+          category: formData.category,
+          type: 'generate'
+        }
+      });
+
+      if (error) throw error;
+
+      const text = responseData?.content || "Updated post content will appear here...";
+
+      setGeneratedPost(text);
+      setEditedPost(text);
       setChangeRequest("");
       toast({
         title: "Post Updated Successfully!",
@@ -275,11 +260,11 @@ export default function CreatePost() {
   // Auto-generate title from post content
   const generateTitle = (content: string): string => {
     if (!content) return "";
-    
+
     // Take first sentence or first 60 characters, whichever is shorter
     const firstSentence = content.split(/[.!?]/)[0];
     const title = firstSentence.length > 60 ? content.substring(0, 60) + "..." : firstSentence;
-    
+
     // Clean up and format
     return title.trim().replace(/\n/g, " ").replace(/\s+/g, " ");
   };
@@ -345,7 +330,7 @@ export default function CreatePost() {
         title: "Saved to Library!",
         description: "Your post has been saved and can be accessed from the Post Library"
       });
-      
+
       setSaveDialogOpen(false);
       resetSaveForm();
     } catch (error) {
@@ -423,7 +408,7 @@ export default function CreatePost() {
         title: "Post Scheduled!",
         description: `Your post has been scheduled for ${format(scheduledDateTime, "PPP 'at' p")}`
       });
-      
+
       setScheduleDialogOpen(false);
       resetSaveForm();
     } catch (error) {
@@ -480,8 +465,8 @@ export default function CreatePost() {
 
   // Ask AI functionality
   const handleAskAI = async () => {
-    console.log("🤖 Ask AI started with Gemini");
-    
+    console.log("🤖 Ask AI started with Gemini Edge Function");
+
     if (!askAiInput.trim()) {
       toast({
         title: "Input Required",
@@ -500,41 +485,30 @@ export default function CreatePost() {
       });
       return;
     }
-    
+
     setIsLoadingAiSuggestions(true);
     try {
-      // ✅ FIX APPLIED: Using 'models/' prefix
-      const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
-      
-      const prompt = `
-      I need 3 LinkedIn post ideas for the category "${category}".
-      User Context/Description: "${askAiInput}"
+      const { data: responseData, error } = await supabase.functions.invoke('generate-post', {
+        body: {
+          prompt: askAiInput,
+          category: category,
+          type: 'askai'
+        }
+      });
 
-      Return strictly valid JSON with this exact structure (no markdown formatting):
-      {
-        "ideas": [
-          {
-            "title": "Short catchy title",
-            "topic": "The detailed topic prompt to use for generation",
-            "tone": "Suggested tone"
-          }
-        ]
-      }
-      `;
+      if (error) throw error;
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      let text = response.text();
-      
+      let text = responseData?.content || "";
+
       // Clean up markdown code blocks if Gemini adds them
       text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      
+
       const data = JSON.parse(text);
       const suggestions = data?.ideas || [];
-      
+
       setAiSuggestions(suggestions);
       setShowSuggestionDropdown(true);
-      
+
       toast({
         title: "AI Suggestions Ready!",
         description: "Select a suggestion to auto-fill your form"
@@ -556,7 +530,7 @@ export default function CreatePost() {
     form.setValue("topic", suggestion.topic);
     form.setValue("tone", suggestion.tone);
     // Do NOT switch topicType back to "text" - stay in "askAI" mode
-    
+
     toast({
       title: "Fields Auto-filled!",
       description: "Topic and tone have been set from AI suggestion"
@@ -576,7 +550,7 @@ export default function CreatePost() {
       setAiSuggestions([]);
       setShowSuggestionDropdown(false);
     }
-    
+
     // Clear generated content for all input method switches
     setGeneratedPost("");
     setEditedPost("");
@@ -666,7 +640,6 @@ export default function CreatePost() {
                             >
                               <div className="text-center">
                                 <div className="font-medium">Text Input</div>
-                                {/* <div className="text-[10px] opacity-70">Direct entry</div> */}
                               </div>
                             </ToggleGroupItem>
                             <ToggleGroupItem
@@ -675,7 +648,6 @@ export default function CreatePost() {
                             >
                               <div className="text-center">
                                 <div className="font-medium">Ask AI</div>
-                                {/* <div className="text-[10px] opacity-70">AI suggestions</div> */}
                               </div>
                             </ToggleGroupItem>
                             <ToggleGroupItem
@@ -684,7 +656,6 @@ export default function CreatePost() {
                             >
                               <div className="text-center">
                                 <div className="font-medium">URL Input</div>
-                                {/* <div className="text-[10px] opacity-70">Analyze content</div> */}
                               </div>
                             </ToggleGroupItem>
                           </ToggleGroup>
@@ -903,7 +874,7 @@ export default function CreatePost() {
                   <div className="absolute inset-0 overflow-hidden rounded-xl">
                     <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-red-300 to-transparent animate-scan"></div>
                   </div>
-                  
+
                   {generatedPost ? (
                     <div className="space-y-4">
                       {editMode ? (
@@ -950,157 +921,54 @@ export default function CreatePost() {
               </CardContent>
             </Card>
 
-            {/* Action Buttons */}
+            {/* Action Buttons - Keeping all existing dialogs and buttons exactly as they were */}
             {generatedPost && (
-              <div className="grid sm:grid-cols-3 gap-4">
-                <Button
-                  variant="outline"
-                  onClick={handleEditToggle}
-                  className="h-12 gap-2 shadow-lg border-2 futuristic-border glow-hover"
-                  size="lg"
-                >
-                  <Edit className="h-5 w-5 drop-shadow-glow" />
-                  {editMode ? "Save Changes" : "Edit Post"}
-                </Button>
-                
-                {/* Save to Library Dialog */}
-                <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      onClick={handleSaveDialogOpen}
-                      className="h-12 gap-2 shadow-lg border-2 futuristic-border glow-hover"
-                      size="lg"
-                    >
-                      <Save className="h-5 w-5 drop-shadow-glow" />
-                      Save to Library
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[500px] bg-popover backdrop-blur-md border shadow-lg futuristic-border">
-                    <DialogHeader>
-                      <DialogTitle className="text-2xl">Save to Post Library</DialogTitle>
-                      <DialogDescription className="text-base">
-                        Add your post to the library for easy access and management
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-6">
-                      <div className="space-y-2">
-                        <Label htmlFor="post-title">Post Title *</Label>
-                        <Input
-                          id="post-title"
-                          placeholder="Enter a descriptive title..."
-                          value={postTitle}
-                          onChange={(e) => setPostTitle(e.target.value)}
-                          className="futuristic-border"
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="post-platform">Platform</Label>
-                        <Select value={postPlatform} onValueChange={setPostPlatform}>
-                          <SelectTrigger className="futuristic-border">
-                            <SelectValue placeholder="Select platform" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover backdrop-blur-md border shadow-lg futuristic-border">
-                            <SelectItem value="LinkedIn">LinkedIn</SelectItem>
-                            <SelectItem value="Twitter">Twitter</SelectItem>
-                            <SelectItem value="Facebook">Facebook</SelectItem>
-                            <SelectItem value="Instagram">Instagram</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+              <>
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <Button
+                    variant="outline"
+                    onClick={handleEditToggle}
+                    className="h-12 gap-2 shadow-lg border-2 futuristic-border glow-hover"
+                    size="lg"
+                  >
+                    <Edit className="h-5 w-5 drop-shadow-glow" />
+                    {editMode ? "Save Changes" : "Edit Post"}
+                  </Button>
 
-                      <div className="space-y-2">
-                        <Label>Tags</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            value={customTag}
-                            onChange={(e) => setCustomTag(e.target.value)}
-                            placeholder="Add a tag"
-                            className="futuristic-border"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                addCustomTag();
-                              }
-                            }}
-                          />
-                          <Button type="button" variant="outline" onClick={addCustomTag} className="futuristic-border glow-hover">
-                            Add
-                          </Button>
-                        </div>
-                        {selectedTags.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {selectedTags.map((tag) => (
-                              <Badge
-                                key={tag}
-                                variant="secondary"
-                                className="cursor-pointer"
-                                onClick={() => removeTag(tag)}
-                              >
-                                {tag} ×
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <DialogFooter className="gap-2">
-                      <Button variant="outline" onClick={() => setSaveDialogOpen(false)} className="futuristic-border glow-hover">
-                        Cancel
+                  {/* Save to Library Dialog */}
+                  <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        onClick={handleSaveDialogOpen}
+                        className="h-12 gap-2 shadow-lg border-2 futuristic-border glow-hover"
+                        size="lg"
+                      >
+                        <Save className="h-5 w-5 drop-shadow-glow" />
+                        Save to Library
                       </Button>
-                      <Button onClick={handleSaveToLibrary} disabled={isSaving || !postTitle.trim()} className="futuristic-border glow-hover">
-                        {isSaving ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <Save className="mr-2 h-4 w-4" />
-                            Save to Library
-                          </>
-                        )}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-
-                {/* Schedule Post Dialog */}
-                <Dialog open={scheduleDialogOpen} onOpenChange={setScheduleDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      onClick={handleScheduleDialogOpen}
-                      className="h-12 gap-2 shadow-lg border-2 futuristic-border glow-hover"
-                      size="lg"
-                    >
-                      <Calendar className="h-5 w-5 drop-shadow-glow" />
-                      Schedule Post
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-hidden flex flex-col bg-popover backdrop-blur-md border shadow-lg futuristic-border">
-                    <DialogHeader>
-                      <DialogTitle className="text-2xl">Schedule Your Post</DialogTitle>
-                      <DialogDescription className="text-base">
-                        Choose when to publish your content
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="flex-1 overflow-y-auto grid gap-4 py-6 pr-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="schedule-title">Post Title *</Label>
-                        <Input
-                          id="schedule-title"
-                          placeholder="Enter a descriptive title..."
-                          value={postTitle}
-                          onChange={(e) => setPostTitle(e.target.value)}
-                          className="futuristic-border"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[500px] bg-popover backdrop-blur-md border shadow-lg futuristic-border">
+                      <DialogHeader>
+                        <DialogTitle className="text-2xl">Save to Post Library</DialogTitle>
+                        <DialogDescription className="text-base">
+                          Add your post to the library for easy access and management
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-6">
                         <div className="space-y-2">
-                          <Label htmlFor="schedule-platform">Platform</Label>
+                          <Label htmlFor="post-title">Post Title *</Label>
+                          <Input
+                            id="post-title"
+                            placeholder="Enter a descriptive title..."
+                            value={postTitle}
+                            onChange={(e) => setPostTitle(e.target.value)}
+                            className="futuristic-border"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="post-platform">Platform</Label>
                           <Select value={postPlatform} onValueChange={setPostPlatform}>
                             <SelectTrigger className="futuristic-border">
                               <SelectValue placeholder="Select platform" />
@@ -1115,132 +983,235 @@ export default function CreatePost() {
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="schedule-time">Time</Label>
+                          <Label>Tags</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              value={customTag}
+                              onChange={(e) => setCustomTag(e.target.value)}
+                              placeholder="Add a tag"
+                              className="futuristic-border"
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  addCustomTag();
+                                }
+                              }}
+                            />
+                            <Button type="button" variant="outline" onClick={addCustomTag} className="futuristic-border glow-hover">
+                              Add
+                            </Button>
+                          </div>
+                          {selectedTags.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {selectedTags.map((tag) => (
+                                <Badge
+                                  key={tag}
+                                  variant="secondary"
+                                  className="cursor-pointer"
+                                  onClick={() => removeTag(tag)}
+                                >
+                                  {tag} ×
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => setSaveDialogOpen(false)} className="futuristic-border glow-hover">
+                          Cancel
+                        </Button>
+                        <Button onClick={handleSaveToLibrary} disabled={isSaving || !postTitle.trim()} className="futuristic-border glow-hover">
+                          {isSaving ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="mr-2 h-4 w-4" />
+                              Save to Library
+                            </>
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
+                  {/* Schedule Post Dialog */}
+                  <Dialog open={scheduleDialogOpen} onOpenChange={setScheduleDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        onClick={handleScheduleDialogOpen}
+                        className="h-12 gap-2 shadow-lg border-2 futuristic-border glow-hover"
+                        size="lg"
+                      >
+                        <Calendar className="h-5 w-5 drop-shadow-glow" />
+                        Schedule Post
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-hidden flex flex-col bg-popover backdrop-blur-md border shadow-lg futuristic-border">
+                      <DialogHeader>
+                        <DialogTitle className="text-2xl">Schedule Your Post</DialogTitle>
+                        <DialogDescription className="text-base">
+                          Choose when to publish your content
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="flex-1 overflow-y-auto grid gap-4 py-6 pr-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="schedule-title">Post Title *</Label>
                           <Input
-                            id="schedule-time"
-                            type="time"
-                            value={selectedTime}
-                            onChange={(e) => setSelectedTime(e.target.value)}
+                            id="schedule-title"
+                            placeholder="Enter a descriptive title..."
+                            value={postTitle}
+                            onChange={(e) => setPostTitle(e.target.value)}
                             className="futuristic-border"
                           />
                         </div>
-                      </div>
 
-                      <div className="space-y-2">
-                        <Label>Select Date</Label>
-                        <CalendarComponent
-                          mode="single" 
-                          selected={selectedDate} 
-                          onSelect={setSelectedDate} 
-                          className="rounded-lg border mx-auto pointer-events-auto futuristic-border"
-                          disabled={(date) => date < new Date()}
-                        />
-                      </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="schedule-platform">Platform</Label>
+                            <Select value={postPlatform} onValueChange={setPostPlatform}>
+                              <SelectTrigger className="futuristic-border">
+                                <SelectValue placeholder="Select platform" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-popover backdrop-blur-md border shadow-lg futuristic-border">
+                                <SelectItem value="LinkedIn">LinkedIn</SelectItem>
+                                <SelectItem value="Twitter">Twitter</SelectItem>
+                                <SelectItem value="Facebook">Facebook</SelectItem>
+                                <SelectItem value="Instagram">Instagram</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-                      {selectedDate && (
-                        <div className="p-4 bg-muted/50 rounded-lg futuristic-border">
-                          <div className="flex items-center gap-2 text-sm">
-                            <Clock className="h-4 w-4 text-primary animate-pulse" />
-                            <span>Scheduled for: {format(selectedDate, "PPP")} at {selectedTime}</span>
+                          <div className="space-y-2">
+                            <Label htmlFor="schedule-time">Time</Label>
+                            <Input
+                              id="schedule-time"
+                              type="time"
+                              value={selectedTime}
+                              onChange={(e) => setSelectedTime(e.target.value)}
+                              className="futuristic-border"
+                            />
                           </div>
                         </div>
+
+                        <div className="space-y-2">
+                          <Label>Select Date</Label>
+                          <CalendarComponent
+                            mode="single"
+                            selected={selectedDate}
+                            onSelect={setSelectedDate}
+                            className="rounded-lg border mx-auto pointer-events-auto futuristic-border"
+                            disabled={(date) => date < new Date()}
+                          />
+                        </div>
+
+                        {selectedDate && (
+                          <div className="p-4 bg-muted/50 rounded-lg futuristic-border">
+                            <div className="flex items-center gap-2 text-sm">
+                              <Clock className="h-4 w-4 text-primary animate-pulse" />
+                              <span>Scheduled for: {format(selectedDate, "PPP")} at {selectedTime}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-2">
+                          <Label>Tags</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              value={customTag}
+                              onChange={(e) => setCustomTag(e.target.value)}
+                              placeholder="Add a tag"
+                              className="futuristic-border"
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  addCustomTag();
+                                }
+                              }}
+                            />
+                            <Button type="button" variant="outline" onClick={addCustomTag} className="futuristic-border glow-hover">
+                              Add
+                            </Button>
+                          </div>
+                          {selectedTags.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {selectedTags.map((tag) => (
+                                <Badge
+                                  key={tag}
+                                  variant="secondary"
+                                  className="cursor-pointer"
+                                  onClick={() => removeTag(tag)}
+                                >
+                                  {tag} ×
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <DialogFooter className="gap-2 flex-shrink-0 border-t pt-4">
+                        <Button variant="outline" onClick={() => setScheduleDialogOpen(false)} className="futuristic-border glow-hover">
+                          Cancel
+                        </Button>
+                        <Button onClick={handleSchedulePost} disabled={isScheduling || !postTitle.trim() || !selectedDate} className="futuristic-border glow-hover">
+                          {isScheduling ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Scheduling...
+                            </>
+                          ) : (
+                            <>
+                              <Calendar className="mr-2 h-4 w-4" />
+                              Schedule Post
+                            </>
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+
+                {/* Refinement Section */}
+                <Card className="futuristic-border glow-hover backdrop-blur-sm shadow-xl border-0 bg-card/50">
+                  <CardHeader>
+                    <CardTitle className="text-lg">Refine Your Content</CardTitle>
+                    <CardDescription>
+                      Not quite right? Tell us what you'd like to change
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <Textarea
+                      placeholder="Example: Make it more casual, add more emojis, focus on the benefits, make it shorter..."
+                      value={changeRequest}
+                      onChange={(e) => setChangeRequest(e.target.value)}
+                      className="min-h-[120px] text-base futuristic-border"
+                    />
+
+                    <Button
+                      onClick={handleResubmit}
+                      disabled={isResubmitting || !changeRequest.trim()}
+                      className="w-full h-12 text-base shadow-lg border-2 futuristic-border glow-hover"
+                      size="lg"
+                    >
+                      {isResubmitting ? (
+                        <>
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          Refining Content...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-5 w-5" />
+                          Refine Post
+                        </>
                       )}
-
-                      <div className="space-y-2">
-                        <Label>Tags</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            value={customTag}
-                            onChange={(e) => setCustomTag(e.target.value)}
-                            placeholder="Add a tag"
-                            className="futuristic-border"
-                            onKeyPress={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                addCustomTag();
-                              }
-                            }}
-                          />
-                          <Button type="button" variant="outline" onClick={addCustomTag} className="futuristic-border glow-hover">
-                            Add
-                          </Button>
-                        </div>
-                        {selectedTags.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {selectedTags.map((tag) => (
-                              <Badge
-                                key={tag}
-                                variant="secondary"
-                                className="cursor-pointer"
-                                onClick={() => removeTag(tag)}
-                              >
-                                {tag} ×
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <DialogFooter className="gap-2 flex-shrink-0 border-t pt-4">
-                      <Button variant="outline" onClick={() => setScheduleDialogOpen(false)} className="futuristic-border glow-hover">
-                        Cancel
-                      </Button>
-                      <Button onClick={handleSchedulePost} disabled={isScheduling || !postTitle.trim() || !selectedDate} className="futuristic-border glow-hover">
-                        {isScheduling ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Scheduling...
-                          </>
-                        ) : (
-                          <>
-                            <Calendar className="mr-2 h-4 w-4" />
-                            Schedule Post
-                          </>
-                        )}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            )}
-
-            {/* Refinement Section */}
-            {generatedPost && (
-              <Card className="futuristic-border glow-hover backdrop-blur-sm shadow-xl border-0 bg-card/50">
-                <CardHeader>
-                  <CardTitle className="text-lg">Refine Your Content</CardTitle>
-                  <CardDescription>
-                    Not quite right? Tell us what you'd like to change
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Textarea
-                    placeholder="Example: Make it more casual, add more emojis, focus on the benefits, make it shorter..."
-                    value={changeRequest}
-                    onChange={(e) => setChangeRequest(e.target.value)}
-                    className="min-h-[120px] text-base futuristic-border"
-                  />
-                  
-                  <Button
-                    onClick={handleResubmit}
-                    disabled={isResubmitting || !changeRequest.trim()}
-                    className="w-full h-12 text-base shadow-lg border-2 futuristic-border glow-hover"
-                    size="lg"
-                  >
-                    {isResubmitting ? (
-                      <>
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        Refining Content...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="mr-2 h-5 w-5" />
-                        Refine Post
-                      </>
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
+                    </Button>
+                  </CardContent>
+                </Card>
+              </>
             )}
           </div>
         </div>
