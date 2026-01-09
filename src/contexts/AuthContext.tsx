@@ -5,11 +5,12 @@ import { useToast } from "@/hooks/use-toast";
 
 interface AuthContextType {
   user: User | null;
+  profile: any | null;
   userRole: string | null;
   tenant: any | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>; // ✅ ADDED THIS
+  signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -17,6 +18,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [tenant, setTenant] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,6 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setProfile(null);
     setUserRole(null);
     setTenant(null);
   };
@@ -68,6 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const loadUser = async (sessionUser: User | null) => {
       if (!sessionUser) {
         setUser(null);
+        setProfile(null);
         setUserRole(null);
         setTenant(null);
         setLoading(false);
@@ -77,20 +81,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(sessionUser);
 
       // Fetch Profile & Role
-      const { data: profile } = await supabase
+      const { data: profileData } = await supabase
         .from("profiles")
         .select("role, tenant_id")
         .eq("user_id", sessionUser.id)
         .single();
 
-      setUserRole(profile?.role ?? "member");
+      setProfile(profileData);
+      setUserRole(profileData?.role ?? "member");
 
       // Fetch Tenant
-      if (profile?.tenant_id) {
+      if (profileData?.tenant_id) {
         const { data: tenantData } = await supabase
           .from("tenants")
           .select("*")
-          .eq("id", profile.tenant_id)
+          .eq("id", profileData.tenant_id)
           .single();
         setTenant(tenantData);
       } else {
@@ -121,11 +126,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
+        profile,
         userRole,
         tenant,
         loading,
         signIn,
-        signUp, // ✅ EXPORTING IT HERE
+        signUp,
         signOut,
       }}
     >
