@@ -228,7 +228,6 @@ export function AppSidebar() {
           </Button>
         </SidebarFooter>
       </Sidebar>
-
       {/* RENDER MODAL */}
       {showPricing && (
         <PricingModal 
