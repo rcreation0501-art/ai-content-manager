@@ -14,8 +14,6 @@ import {
   Save, 
   Linkedin,
   Link as LinkIcon,
-  XCircle,
-  ExternalLink
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -128,7 +126,6 @@ export default function CreatePost() {
   // Handle Button Click (Connect or Disconnect)
   const handleConnectClick = () => {
     if (isLinkedInConnected) {
-      // If already connected, confirm disconnect
       if (confirm("Do you want to disconnect your LinkedIn account?")) {
         localStorage.removeItem("linkedin_profile_url");
         setIsLinkedInConnected(false);
@@ -136,7 +133,6 @@ export default function CreatePost() {
         toast({ title: "Disconnected", description: "LinkedIn account removed." });
       }
     } else {
-      // Open Connect Dialog
       setLinkedinDialogOpen(true);
     }
   };
@@ -153,7 +149,6 @@ export default function CreatePost() {
     }
 
     setIsConnectingLinkedin(true);
-    // Simulate verification delay
     await new Promise(resolve => setTimeout(resolve, 1500));
     
     // Success State & Persistence
@@ -634,19 +629,89 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-red-500/5 data-grid bg-noise p-4 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header Section */}
-        <div className="mb-8 text-center lg:text-left">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-full text-sm font-medium animate-data-pulse mb-4">
-            <Sparkles className="h-4 w-4" />
-            AI-Powered Content Creation
+        
+        {/* Header Section (Button Moved Here) */}
+        <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+          <div>
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-full text-sm font-medium animate-data-pulse mb-4">
+              <Sparkles className="h-4 w-4" />
+              AI-Powered Content Creation
+            </div>
+            <h1 className="text-4xl lg:text-5xl font-bold tracking-tight bg-gradient-to-r from-red-400 to-red-600 bg-clip-text text-transparent animate-pulse-glow">
+              Create LinkedIn Posts
+            </h1>
+            <p className="text-xl text-muted-foreground max-w-2xl mt-2">
+              Generate engaging, professional LinkedIn content that resonates with your audience using Gemini AI
+            </p>
           </div>
-          <h1 className="text-4xl lg:text-5xl font-bold tracking-tight bg-gradient-to-r from-red-400 to-red-600 bg-clip-text text-transparent animate-pulse-glow">
-            Create LinkedIn Posts
-          </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mt-2">
-            Generate engaging, professional LinkedIn content that resonates with your audience using Gemini AI
-          </p>
+
+          {/* 🔗 BUTTON LOCATION (Top Right) */}
+          <Button
+            type="button"
+            variant={isLinkedInConnected ? "ghost" : "outline"}
+            size="lg"
+            onClick={handleConnectClick}
+            disabled={isConnectingLinkedin}
+            className={cn(
+              "h-12 gap-3 futuristic-border transition-all shadow-lg text-base font-semibold",
+              isLinkedInConnected 
+                ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30" 
+                : "text-blue-400 border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10"
+            )}
+          >
+            {isConnectingLinkedin ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : isLinkedInConnected ? (
+              <CheckCircle className="h-5 w-5" />
+            ) : (
+              <Linkedin className="h-5 w-5 fill-current" />
+            )}
+            {isLinkedInConnected ? "Account Linked" : isConnectingLinkedin ? "Connecting..." : "Connect LinkedIn"}
+          </Button>
         </div>
+
+        {/* DIALOG (Hidden by default) */}
+        <Dialog open={linkedinDialogOpen} onOpenChange={setLinkedinDialogOpen}>
+            <DialogContent className="sm:max-w-[425px] bg-popover backdrop-blur-md border shadow-lg futuristic-border">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Linkedin className="h-6 w-6 text-[#0077b5]" />
+                        Connect LinkedIn
+                    </DialogTitle>
+                    <DialogDescription>
+                        Enter your public profile URL to link your account for posting.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                        <Label htmlFor="linkedin-url">LinkedIn Profile URL</Label>
+                        <div className="relative">
+                            <LinkIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                id="linkedin-url"
+                                placeholder="https://www.linkedin.com/in/yourname"
+                                className="pl-9 futuristic-border"
+                                value={linkedinProfileUrl}
+                                onChange={(e) => setLinkedinProfileUrl(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setLinkedinDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={confirmLinkedInConnection} disabled={isConnectingLinkedin}>
+                        {isConnectingLinkedin ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Verifying...
+                            </>
+                        ) : (
+                            "Link Profile"
+                        )}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
 
         {/* Main Content Grid */}
         <div className="grid lg:grid-cols-3 gap-8">
@@ -654,85 +719,13 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
           <div className="lg:col-span-1 space-y-6">
             <Card className="futuristic-border glow-hover backdrop-blur-sm shadow-xl border-0 bg-card/50">
               <CardHeader className="pb-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <CardTitle className="flex items-center gap-2 text-xl">
-                      <Edit className="h-5 w-5 drop-shadow-glow" />
-                      Configuration
-                    </CardTitle>
-                    <CardDescription>
-                      Define post parameters
-                    </CardDescription>
-                  </div>
-                  
-                  {/* Connect LinkedIn Button (UPDATED UI) */}
-                  <Button
-                    type="button"
-                    variant={isLinkedInConnected ? "ghost" : "outline"}
-                    size="sm"
-                    onClick={handleConnectClick}
-                    disabled={isConnectingLinkedin}
-                    className={cn(
-                      "h-9 gap-2 futuristic-border transition-all",
-                      isLinkedInConnected 
-                        ? "text-emerald-400 hover:text-red-400 hover:bg-red-500/10" // Hover changes to red/disconnect
-                        : "text-indigo-400 hover:bg-indigo-500/10"
-                    )}
-                  >
-                    {isConnectingLinkedin ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : isLinkedInConnected ? (
-                      <CheckCircle className="h-4 w-4" />
-                    ) : (
-                      <Linkedin className="h-4 w-4" />
-                    )}
-                    {isLinkedInConnected ? "Account Linked" : isConnectingLinkedin ? "Linking..." : "Link LinkedIn Account"}
-                  </Button>
-
-                  {/* 🔗 LINKEDIN DIALOG (Pop-up Form) */}
-                  <Dialog open={linkedinDialogOpen} onOpenChange={setLinkedinDialogOpen}>
-                    <DialogContent className="sm:max-w-[425px] bg-popover backdrop-blur-md border shadow-lg futuristic-border">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                                <Linkedin className="h-6 w-6 text-[#0077b5]" />
-                                Connect LinkedIn
-                            </DialogTitle>
-                            <DialogDescription>
-                                Enter your public profile URL to link your account for posting.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="linkedin-url">LinkedIn Profile URL</Label>
-                                <div className="relative">
-                                    <LinkIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        id="linkedin-url"
-                                        placeholder="https://www.linkedin.com/in/yourname"
-                                        className="pl-9 futuristic-border"
-                                        value={linkedinProfileUrl}
-                                        onChange={(e) => setLinkedinProfileUrl(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => setLinkedinDialogOpen(false)}>Cancel</Button>
-                            <Button onClick={confirmLinkedInConnection} disabled={isConnectingLinkedin}>
-                                {isConnectingLinkedin ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Verifying...
-                                    </>
-                                ) : (
-                                    "Link Profile"
-                                )}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-
-                </div>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Edit className="h-5 w-5 drop-shadow-glow" />
+                  Configuration
+                </CardTitle>
+                <CardDescription>
+                  Define post parameters
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <Form {...form}>
