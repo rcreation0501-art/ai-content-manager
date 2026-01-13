@@ -10,7 +10,7 @@ import {
   Sparkles,
   Clock,
   AlertTriangle,
-  Crown, // 👑 Added for the Admin Icon
+  Crown,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { MilitaryLogo } from "./ui/ghost-logo";
@@ -42,13 +42,12 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { tenant, user, userRole, loading, signOut } = useAuth();
-  
+   
   const [showPricing, setShowPricing] = useState(false);
   const [daysLeft, setDaysLeft] = useState<number>(0);
   const [isExpired, setIsExpired] = useState(false);
 
   // 👑 CHECK IF ADMIN
-  // We check if the role is 'admin' OR if the email matches your specific master email
   const isAdmin = userRole === 'admin' || user?.email === 'info@aiforfuture.tech';
 
   // 🕒 Calculate Trial Time Remaining
@@ -57,7 +56,6 @@ export function AppSidebar() {
       const expiry = new Date(user.subscription_expiry);
       const now = new Date();
       
-      // If Admin, give infinite days visual
       if (isAdmin) {
         setDaysLeft(9999);
         setIsExpired(false);
@@ -76,7 +74,6 @@ export function AppSidebar() {
   }, [user, isAdmin]);
 
   const handleRestrictedClick = (e: any) => {
-    // Admins are never restricted
     if (!isAdmin && isExpired) {
       e.preventDefault();
       setShowPricing(true);
@@ -99,10 +96,10 @@ export function AppSidebar() {
             <MilitaryLogo size="md" />
             <div>
               <h1 className="font-mono font-bold text-lg text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-red-600">
-                Ghost Protocol
+                Sasa AI
               </h1>
               <div className="flex items-center gap-2">
-                <p className="text-sm text-muted-foreground">LEAD MAGNET AI</p>
+                <p className="text-sm text-muted-foreground">CONTENT MANAGER</p>
                 {/* 🚨 ADMIN TAG ON HEADER 🚨 */}
                 {isAdmin && (
                   <span className="bg-red-600/20 text-red-500 text-[10px] font-bold px-1.5 py-0.5 rounded border border-red-600/30">
@@ -135,7 +132,7 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 ))}
 
-                {/* 🛡️ ADMIN PANEL LINK (Only Visible to You) */}
+                {/* 🛡️ ADMIN PANEL LINK */}
                 {isAdmin && (
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 mt-4">
@@ -157,7 +154,7 @@ export function AppSidebar() {
           {user && (
             <div className={`px-4 py-3 rounded-xl border ${
               isAdmin 
-                ? 'bg-gradient-to-r from-red-900/40 to-black border-red-500/50' // Special Dark Red for Admin
+                ? 'bg-gradient-to-r from-red-900/40 to-black border-red-500/50' 
                 : isExpired 
                   ? 'bg-red-500/10 border-red-500/50' 
                   : 'bg-gray-800 border-gray-700'
@@ -165,7 +162,7 @@ export function AppSidebar() {
                <div className="flex items-center justify-between mb-1">
                  <p className="text-xs text-gray-400">Status</p>
                  {isAdmin ? (
-                   <Crown size={14} className="text-yellow-500" /> // Crown for Admin
+                   <Crown size={14} className="text-yellow-500" />
                  ) : isExpired ? (
                    <AlertTriangle size={14} className="text-red-500" />
                  ) : (
@@ -191,7 +188,7 @@ export function AppSidebar() {
             </div>
           )}
 
-          {/* UPGRADE BUTTON (Hidden for Admin) */}
+          {/* UPGRADE BUTTON */}
           {!isAdmin && (
             <Button 
               onClick={() => setShowPricing(true)}
@@ -213,11 +210,9 @@ export function AppSidebar() {
             </div>
           )}
 
-          {/* User Email Display */}
           {user && (
             <div className="flex items-center justify-between">
               <p className="text-xs text-muted-foreground truncate flex-1">{user.email}</p>
-              {/* Extra Mini Badge for Email Line */}
               {isAdmin && <Shield size={12} className="text-red-500 ml-2" />}
             </div>
           )}
@@ -228,7 +223,7 @@ export function AppSidebar() {
           </Button>
         </SidebarFooter>
       </Sidebar>
-      {/* RENDER MODAL */}
+
       {showPricing && (
         <PricingModal 
           user={user} 
