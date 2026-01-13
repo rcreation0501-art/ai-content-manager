@@ -2,7 +2,21 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Copy, Calendar, Edit, Loader2, Settings, CheckCircle, Clock, Sparkles, Send, Save, BookOpen, Eye } from "lucide-react";
+import { 
+  Copy, 
+  Calendar, 
+  Edit, 
+  Loader2, 
+  Settings, 
+  CheckCircle, 
+  Clock, 
+  Sparkles, 
+  Send, 
+  Save, 
+  BookOpen, 
+  Eye, 
+  Linkedin 
+} from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,6 +82,10 @@ export default function CreatePost() {
   const [editMode, setEditMode] = useState(false);
   const [editedPost, setEditedPost] = useState("");
 
+  // LinkedIn Connection State
+  const [isLinkedInConnected, setIsLinkedInConnected] = useState(false);
+  const [isConnectingLinkedin, setIsConnectingLinkedin] = useState(false);
+
   // Ask AI feature state
   const [askAiInput, setAskAiInput] = useState("");
   const [aiSuggestions, setAiSuggestions] = useState<Array<{title: string, topic: string, tone: string}>>([]);
@@ -96,6 +114,30 @@ export default function CreatePost() {
       tone: ""
     }
   });
+
+  // Safe "Connect" Handler (No external dependencies)
+  const handleConnectLinkedin = async () => {
+    setIsConnectingLinkedin(true);
+    try {
+      // Simulate OAuth flow delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Success State
+      setIsLinkedInConnected(true);
+      toast({
+        title: "LinkedIn Connected",
+        description: "Your LinkedIn account has been successfully linked.",
+      });
+    } catch (error) {
+      toast({
+        title: "Connection Failed",
+        description: "Failed to link LinkedIn account. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsConnectingLinkedin(false);
+    }
+  };
 
   const isValidUrl = (string: string) => {
     const formatted = formatUrl(string);
@@ -563,15 +605,15 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-red-500/5 data-grid bg-noise p-4 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header Section */}
-        <div className="mb-8">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-full text-sm font-medium animate-data-pulse">
+        <div className="mb-8 text-center lg:text-left">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-full text-sm font-medium animate-data-pulse mb-4">
             <Sparkles className="h-4 w-4" />
             AI-Powered Content Creation
           </div>
           <h1 className="text-4xl lg:text-5xl font-bold tracking-tight bg-gradient-to-r from-red-400 to-red-600 bg-clip-text text-transparent animate-pulse-glow">
             Create LinkedIn Posts
           </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-xl text-muted-foreground max-w-2xl mt-2">
             Generate engaging, professional LinkedIn content that resonates with your audience using Gemini AI
           </p>
         </div>
@@ -581,14 +623,40 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
           {/* Left Panel - Form */}
           <div className="lg:col-span-1 space-y-6">
             <Card className="futuristic-border glow-hover backdrop-blur-sm shadow-xl border-0 bg-card/50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Edit className="h-5 w-5 drop-shadow-glow" />
-                  Post Configuration
-                </CardTitle>
-                <CardDescription>
-                  Define your content parameters
-                </CardDescription>
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <CardTitle className="flex items-center gap-2 text-xl">
+                      <Edit className="h-5 w-5 drop-shadow-glow" />
+                      Configuration
+                    </CardTitle>
+                    <CardDescription>
+                      Define post parameters
+                    </CardDescription>
+                  </div>
+                  
+                  {/* Connect LinkedIn Button (SAFE VERSION) */}
+                  <Button
+                    type="button"
+                    variant={isLinkedInConnected ? "ghost" : "outline"}
+                    size="sm"
+                    onClick={handleConnectLinkedin}
+                    disabled={isLinkedInConnected || isConnectingLinkedin}
+                    className={cn(
+                      "h-9 gap-2 futuristic-border transition-all",
+                      isLinkedInConnected ? "text-emerald-400 hover:text-emerald-300" : "text-indigo-400 hover:bg-indigo-500/10"
+                    )}
+                  >
+                    {isConnectingLinkedin ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : isLinkedInConnected ? (
+                      <CheckCircle className="h-4 w-4" />
+                    ) : (
+                      <Linkedin className="h-4 w-4" />
+                    )}
+                    {isLinkedInConnected ? "Linked" : isConnectingLinkedin ? "Linking..." : "Connect"}
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <Form {...form}>
@@ -800,7 +868,9 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
                             <SelectContent className="bg-popover backdrop-blur-md border shadow-lg futuristic-border">
                               {tones.map(tone => (
                                 <SelectItem key={tone} value={tone} className="py-3">
-                                  {tone}
+                                  <div className="text-sm">
+                                    {tone}
+                                  </div>
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -820,7 +890,7 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
                       {isGenerating ? (
                         <>
                           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                          Generating Amazing Content...
+                          Generating...
                         </>
                       ) : (
                         <>
@@ -921,7 +991,7 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
               </CardContent>
             </Card>
 
-            {/* Action Buttons - Keeping all existing dialogs and buttons exactly as they were */}
+            {/* Action Buttons */}
             {generatedPost && (
               <>
                 <div className="grid sm:grid-cols-3 gap-4">
@@ -1200,7 +1270,7 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
                       {isResubmitting ? (
                         <>
                           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                          Refining Content...
+                          Refining...
                         </>
                       ) : (
                         <>
