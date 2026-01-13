@@ -645,7 +645,7 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
             </p>
           </div>
 
-          {/* 🔗 BUTTON LOCATION (Top Right) */}
+          {/* 🔗 BUTTON LOCATION (Top Right) - ICON REMOVED */}
           <Button
             type="button"
             variant={isLinkedInConnected ? "ghost" : "outline"}
@@ -664,7 +664,8 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
             ) : isLinkedInConnected ? (
               <CheckCircle className="h-5 w-5" />
             ) : (
-              <Linkedin className="h-5 w-5 fill-current" />
+              // NO ICON FOR DEFAULT STATE AS REQUESTED
+              null
             )}
             {isLinkedInConnected ? "Account Linked" : isConnectingLinkedin ? "Connecting..." : "Connect LinkedIn"}
           </Button>
