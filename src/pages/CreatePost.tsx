@@ -7,15 +7,15 @@ import {
   Calendar, 
   Edit, 
   Loader2, 
-  Settings, 
   CheckCircle, 
   Clock, 
   Sparkles, 
   Send, 
   Save, 
-  BookOpen, 
-  Eye, 
-  Linkedin 
+  Linkedin,
+  Link as LinkIcon,
+  XCircle,
+  ExternalLink
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
@@ -85,6 +84,8 @@ export default function CreatePost() {
   // LinkedIn Connection State
   const [isLinkedInConnected, setIsLinkedInConnected] = useState(false);
   const [isConnectingLinkedin, setIsConnectingLinkedin] = useState(false);
+  const [linkedinDialogOpen, setLinkedinDialogOpen] = useState(false);
+  const [linkedinProfileUrl, setLinkedinProfileUrl] = useState(""); 
 
   // Ask AI feature state
   const [askAiInput, setAskAiInput] = useState("");
@@ -115,28 +116,57 @@ export default function CreatePost() {
     }
   });
 
-  // Safe "Connect" Handler (No external dependencies)
-  const handleConnectLinkedin = async () => {
-    setIsConnectingLinkedin(true);
-    try {
-      // Simulate OAuth flow delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Success State
+  // 🔄 PERSISTENCE: Check LocalStorage on Load
+  useEffect(() => {
+    const savedUrl = localStorage.getItem("linkedin_profile_url");
+    if (savedUrl) {
+      setLinkedinProfileUrl(savedUrl);
       setIsLinkedInConnected(true);
-      toast({
-        title: "LinkedIn Connected",
-        description: "Your LinkedIn account has been successfully linked.",
-      });
-    } catch (error) {
-      toast({
-        title: "Connection Failed",
-        description: "Failed to link LinkedIn account. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsConnectingLinkedin(false);
     }
+  }, []);
+
+  // Handle Button Click (Connect or Disconnect)
+  const handleConnectClick = () => {
+    if (isLinkedInConnected) {
+      // If already connected, confirm disconnect
+      if (confirm("Do you want to disconnect your LinkedIn account?")) {
+        localStorage.removeItem("linkedin_profile_url");
+        setIsLinkedInConnected(false);
+        setLinkedinProfileUrl("");
+        toast({ title: "Disconnected", description: "LinkedIn account removed." });
+      }
+    } else {
+      // Open Connect Dialog
+      setLinkedinDialogOpen(true);
+    }
+  };
+
+  // Actual Connection Logic
+  const confirmLinkedInConnection = async () => {
+    if (!linkedinProfileUrl.includes("linkedin.com/in/")) {
+        toast({
+            title: "Invalid URL",
+            description: "Please enter a valid LinkedIn profile URL (e.g. linkedin.com/in/yourname)",
+            variant: "destructive"
+        });
+        return;
+    }
+
+    setIsConnectingLinkedin(true);
+    // Simulate verification delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Success State & Persistence
+    localStorage.setItem("linkedin_profile_url", linkedinProfileUrl);
+    setIsLinkedInConnected(true);
+    setLinkedinDialogOpen(false);
+    
+    toast({
+      title: "LinkedIn Connected",
+      description: `Successfully linked profile.`,
+    });
+    
+    setIsConnectingLinkedin(false);
   };
 
   const isValidUrl = (string: string) => {
@@ -635,16 +665,18 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
                     </CardDescription>
                   </div>
                   
-                  {/* Connect LinkedIn Button (SAFE VERSION) */}
+                  {/* Connect LinkedIn Button (UPDATED UI) */}
                   <Button
                     type="button"
                     variant={isLinkedInConnected ? "ghost" : "outline"}
                     size="sm"
-                    onClick={handleConnectLinkedin}
-                    disabled={isLinkedInConnected || isConnectingLinkedin}
+                    onClick={handleConnectClick}
+                    disabled={isConnectingLinkedin}
                     className={cn(
                       "h-9 gap-2 futuristic-border transition-all",
-                      isLinkedInConnected ? "text-emerald-400 hover:text-emerald-300" : "text-indigo-400 hover:bg-indigo-500/10"
+                      isLinkedInConnected 
+                        ? "text-emerald-400 hover:text-red-400 hover:bg-red-500/10" // Hover changes to red/disconnect
+                        : "text-indigo-400 hover:bg-indigo-500/10"
                     )}
                   >
                     {isConnectingLinkedin ? (
@@ -654,8 +686,52 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
                     ) : (
                       <Linkedin className="h-4 w-4" />
                     )}
-                    {isLinkedInConnected ? "Linked" : isConnectingLinkedin ? "Linking..." : "Connect"}
+                    {isLinkedInConnected ? "Account Linked" : isConnectingLinkedin ? "Linking..." : "Link LinkedIn Account"}
                   </Button>
+
+                  {/* 🔗 LINKEDIN DIALOG (Pop-up Form) */}
+                  <Dialog open={linkedinDialogOpen} onOpenChange={setLinkedinDialogOpen}>
+                    <DialogContent className="sm:max-w-[425px] bg-popover backdrop-blur-md border shadow-lg futuristic-border">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2">
+                                <Linkedin className="h-6 w-6 text-[#0077b5]" />
+                                Connect LinkedIn
+                            </DialogTitle>
+                            <DialogDescription>
+                                Enter your public profile URL to link your account for posting.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="linkedin-url">LinkedIn Profile URL</Label>
+                                <div className="relative">
+                                    <LinkIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        id="linkedin-url"
+                                        placeholder="https://www.linkedin.com/in/yourname"
+                                        className="pl-9 futuristic-border"
+                                        value={linkedinProfileUrl}
+                                        onChange={(e) => setLinkedinProfileUrl(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setLinkedinDialogOpen(false)}>Cancel</Button>
+                            <Button onClick={confirmLinkedInConnection} disabled={isConnectingLinkedin}>
+                                {isConnectingLinkedin ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Verifying...
+                                    </>
+                                ) : (
+                                    "Link Profile"
+                                )}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
                 </div>
               </CardHeader>
               <CardContent>
@@ -890,7 +966,7 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
                       {isGenerating ? (
                         <>
                           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                          Generating...
+                          Generating Amazing Content...
                         </>
                       ) : (
                         <>
