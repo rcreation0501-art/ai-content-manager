@@ -9,7 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "deploy-functions": "supabase functions deploy generate-post --project-ref ddxhhotymwaemmcmxmhj"
+    "deploy-functions": "npx supabase functions deploy generate-post --project-ref ddxhhotymwaemmcmxmhj"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
