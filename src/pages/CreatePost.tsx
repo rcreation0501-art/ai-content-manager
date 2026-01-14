@@ -216,7 +216,7 @@ export default function CreatePost() {
 
     setIsGenerating(true);
     try {
-      const { data: responseData, error } = await supabase.functions.invoke('gemini-brain', {
+      const { data: responseData, error } = await supabase.functions.invoke('generate-post', {
         body: {
           prompt: processedTopic,
           topic: processedTopic,
@@ -275,7 +275,7 @@ User Feedback/Change Request:
 
 Please provide the rewritten post only. Maintain professional LinkedIn formatting.`;
 
-      const { data: responseData, error } = await supabase.functions.invoke('gemini-brain', {
+      const { data: responseData, error } = await supabase.functions.invoke('generate-post', {
         body: {
           prompt: refinementPrompt,
           topic: refinementPrompt,
@@ -555,7 +555,7 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
 
     setIsLoadingAiSuggestions(true);
     try {
-      const { data: responseData, error } = await supabase.functions.invoke('gemini-brain', {
+      const { data: responseData, error } = await supabase.functions.invoke('generate-post', {
         body: {
           prompt: askAiInput,
           category: category,
