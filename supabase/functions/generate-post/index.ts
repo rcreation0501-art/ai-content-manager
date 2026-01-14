@@ -28,7 +28,8 @@ serve(async (req) => {
 
     // 4. Setup Gemini
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' })
+   // UPGRADE TO FLASH
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
 
     let finalPrompt = "";
 
