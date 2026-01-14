@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.1.3"
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS', // Hardening #1: Explicit methods
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
 serve(async (req) => {
@@ -14,32 +14,23 @@ serve(async (req) => {
   }
 
   try {
-    // 2. Get API Key (Check both to be safe)
+    // 2. Get API Key
     const apiKey = Deno.env.get('GOOGLE_API_KEY') || Deno.env.get('GEMINI_API_KEY');
-    if (!apiKey) {
-        console.error("Missing API Key");
-        throw new Error('API Key missing! Check Supabase Secrets.');
-    }
+    if (!apiKey) throw new Error('API Key missing! Check Supabase Secrets.');
 
-    // 3. Get User Input (Hardening #2: Defensive Parse)
-    // If json() fails (empty body), we return {} so the code doesn't crash here.
+    // 3. Get User Input (Defensive Parse)
     const body = await req.json().catch(() => ({})); 
     const { topic, tone, type, prompt, category } = body;
 
-    // 4. VALIDATION GUARDS
-    // Ask AI: Needs (prompt OR category)
-    if (type === 'askai' && !prompt && !category) {
-      return new Response(JSON.stringify({ error: 'Missing prompt or category for Ask AI' }), {
+    // 4. UNIVERSAL INPUT HANDLING (The Fix)
+    // We grab the text from ANY of these fields so it never fails validation.
+    const userContent = prompt || topic || category; 
+
+    // Validation: If literally everything is empty, THEN complain.
+    if (!userContent) {
+      return new Response(JSON.stringify({ error: 'Missing input! Please provide a topic or prompt.' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400, // Client Error
-      });
-    }
-    
-    // Standard Post: Needs topic
-    if (type !== 'askai' && !topic) {
-      return new Response(JSON.stringify({ error: 'Missing topic for post generation' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400, // Client Error
+        status: 400,
       });
     }
 
@@ -51,20 +42,20 @@ serve(async (req) => {
 
     // 6. LOGIC SWITCH
     if (type === 'askai') {
-      // Logic for "Ask AI" button
-      finalPrompt = `I need 3 LinkedIn post ideas for the category "${category || 'General'}".
-      User Context: "${prompt || topic}"
+      // Logic for "Ask AI" (Idea Generator)
+      finalPrompt = `I need 3 LinkedIn post ideas.
+      User Context: "${userContent}"
       
-      Return strictly valid JSON with this exact structure (no markdown, no backticks):
+      Return strictly valid JSON with this exact structure (no markdown):
       {
         "ideas": [
           { "title": "Short catchy title", "topic": "Detailed topic prompt", "tone": "Suggested tone" }
         ]
       }`;
     } else {
-      // Logic for "Create Post" button
-      finalPrompt = `Write a ${tone || 'professional'} LinkedIn post about: "${topic}". 
-      Context: ${category || 'General'}.
+      // Logic for "Create Post" (Content Generator)
+      finalPrompt = `Write a ${tone || 'professional'} LinkedIn post. 
+      Topic: "${userContent}". 
       Requirements: Catchy hook, under 200 words, use emojis, clear structure.`;
     }
 
@@ -80,11 +71,10 @@ serve(async (req) => {
     })
 
   } catch (error) {
-    // 9. CATCH ALL (Server/Gemini Errors)
     console.error("Backend Error:", error.message)
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500, // Server Error
+      status: 500,
     })
   }
 })
