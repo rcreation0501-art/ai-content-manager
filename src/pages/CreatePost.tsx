@@ -275,7 +275,7 @@ User Feedback/Change Request:
 
 Please provide the rewritten post only. Maintain professional LinkedIn formatting.`;
 
-      const { data: responseData, error } = await supabase.functions.invoke('generate-post', {
+      const { data: responseData, error } = await supabase.functions.invoke('gemini-brain', {
         body: {
           prompt: refinementPrompt,
           topic: refinementPrompt,
