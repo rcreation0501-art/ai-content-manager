@@ -1,3 +1,4 @@
+// FORCE DEPLOY: VERSION 5.0 (Invincible Mode)
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.1.3"
 
@@ -17,12 +18,12 @@ serve(async (req) => {
     const apiKey = Deno.env.get('GOOGLE_API_KEY') || Deno.env.get('GEMINI_API_KEY');
     if (!apiKey) throw new Error('API Key missing!');
 
-    // 2. DEFENSIVE PARSE
+    // 2. DEFENSIVE PARSE (Catch empty data)
     const body = await req.json().catch(() => ({})); 
     const { topic, tone, type, prompt, category } = body;
 
-    // 3. THE FALLBACK (Prevents 400 Errors during testing)
-    // If input is empty, we force a default topic so the pipeline never breaks.
+    // 3. THE FALLBACK (The Anti-400 Logic)
+    // If input is empty, we USE A DEFAULT. This prevents the 400 Error.
     const userContent = prompt || topic || category || "The future of AI technology"; 
 
     // 4. Setup Gemini
@@ -51,6 +52,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error("Server Error:", error.message)
+    // Return 500, NEVER 400.
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
