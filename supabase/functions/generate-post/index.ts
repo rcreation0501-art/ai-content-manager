@@ -1,86 +1,51 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { GoogleGenerativeAI } from "npm:@google/generative-ai@0.24.1";
-// trigger deploy
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.1.3"
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
-};
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
+serve(async (req) => {
+  // 1. Handle CORS (Allow the app to talk to the server)
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { prompt, topic, tone, category, type } = await req.json();
-    const apiKey = Deno.env.get("GEMINI_API_KEY");
-
+    // 2. Get the API Key (Try both names to be safe)
+    const apiKey = Deno.env.get('GOOGLE_API_KEY') || Deno.env.get('GEMINI_API_KEY');
+    
     if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is not configured");
+      throw new Error('API Key missing! Please set GOOGLE_API_KEY in Supabase Secrets.')
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "models/gemini-1.5-flash" });
+    // 3. Get the User's Input
+    const { topic, tone, type } = await req.json()
+    
+    // 4. Call Google Gemini
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' })
 
-    let finalPrompt = "";
+    const prompt = `Write a ${tone || 'professional'} LinkedIn post about: "${topic}". 
+    Type: ${type || 'standard'}. 
+    Keep it engaging and under 200 words.`
 
-    if (type === "askai") {
-      finalPrompt = `I need 3 LinkedIn post ideas for the category "${category}".
-User Context/Description: "${prompt}"
+    const result = await model.generateContent(prompt)
+    const response = result.response
+    const text = response.text()
 
-Return strictly valid JSON with this exact structure (no markdown formatting):
-{
-  "ideas": [
-    {
-      "title": "Short catchy title",
-      "topic": "The detailed topic prompt to use for generation",
-      "tone": "Suggested tone"
-    }
-  ]
-}`;
-    } else {
-      finalPrompt = `Act as a professional LinkedIn content creator.
-
-Task: Write a high-quality, engaging LinkedIn post.
-Category: ${category}
-Tone: ${tone}
-Topic/Context: ${topic}
-
-Requirements:
-- Use appropriate spacing for readability.
-- Include a catchy hook in the first line.
-- Use relevant emojis.
-- End with a call to action.`;
-    }
-
-    const result = await model.generateContent(finalPrompt);
-    const response = await result.response;
-    const text = response.text();
-
+    // 5. Send the Result back
     return new Response(JSON.stringify({ content: text }), {
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json",
-      },
-    });
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+
   } catch (error) {
-    console.error("Error generating content:", error);
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "Failed to generate content"
-      }),
-      {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    // 6. IF IT FAILS: Send the error message to the user (instead of crashing)
+    console.error("Error:", error.message)
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 400,
+    })
   }
-});
+})
