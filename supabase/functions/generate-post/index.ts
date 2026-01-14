@@ -1,6 +1,6 @@
 // FORCE DEPLOY: VERSION 5.0 (Invincible Mode)
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.12.0"
+import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.21.0"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,7 +29,7 @@ serve(async (req) => {
     // 4. Setup Gemini
     const genAI = new GoogleGenerativeAI(apiKey)
    // UPGRADE TO FLASH
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-001' })
 
     let finalPrompt = "";
 
