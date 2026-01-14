@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.1.3"
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS', // Hardening #1: Explicit methods
 }
 
 serve(async (req) => {
@@ -15,22 +16,44 @@ serve(async (req) => {
   try {
     // 2. Get API Key (Check both to be safe)
     const apiKey = Deno.env.get('GOOGLE_API_KEY') || Deno.env.get('GEMINI_API_KEY');
-    if (!apiKey) throw new Error('API Key missing! Check Supabase Secrets.');
+    if (!apiKey) {
+        console.error("Missing API Key");
+        throw new Error('API Key missing! Check Supabase Secrets.');
+    }
 
-    // 3. Get User Input (Including 'prompt' and 'category' for Ask AI)
-    const { topic, tone, type, prompt, category } = await req.json()
+    // 3. Get User Input (Hardening #2: Defensive Parse)
+    // If json() fails (empty body), we return {} so the code doesn't crash here.
+    const body = await req.json().catch(() => ({})); 
+    const { topic, tone, type, prompt, category } = body;
 
-    // 4. Setup Gemini
+    // 4. VALIDATION GUARDS
+    // Ask AI: Needs (prompt OR category)
+    if (type === 'askai' && !prompt && !category) {
+      return new Response(JSON.stringify({ error: 'Missing prompt or category for Ask AI' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, // Client Error
+      });
+    }
+    
+    // Standard Post: Needs topic
+    if (type !== 'askai' && !topic) {
+      return new Response(JSON.stringify({ error: 'Missing topic for post generation' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, // Client Error
+      });
+    }
+
+    // 5. Setup Gemini
     const genAI = new GoogleGenerativeAI(apiKey)
     const model = genAI.getGenerativeModel({ model: 'gemini-pro' })
 
     let finalPrompt = "";
 
-    // 5. THE LOGIC SWITCH: Check if we are generating Ideas (Ask AI) or a Post
+    // 6. LOGIC SWITCH
     if (type === 'askai') {
       // Logic for "Ask AI" button
-      finalPrompt = `I need 3 LinkedIn post ideas for the category "${category}".
-      User Context: "${prompt}"
+      finalPrompt = `I need 3 LinkedIn post ideas for the category "${category || 'General'}".
+      User Context: "${prompt || topic}"
       
       Return strictly valid JSON with this exact structure (no markdown, no backticks):
       {
@@ -45,20 +68,23 @@ serve(async (req) => {
       Requirements: Catchy hook, under 200 words, use emojis, clear structure.`;
     }
 
-    // 6. Generate Content
+    // 7. Generate
     const result = await model.generateContent(finalPrompt)
     const response = result.response
-    const text = response.text()
+    const text = response.text().trim()
 
+    // 8. Return Result
     return new Response(JSON.stringify({ content: text }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
     })
 
   } catch (error) {
-    console.error("Error:", error.message)
+    // 9. CATCH ALL (Server/Gemini Errors)
+    console.error("Backend Error:", error.message)
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
+      status: 500, // Server Error
     })
   }
 })
