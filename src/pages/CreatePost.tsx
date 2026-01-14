@@ -555,7 +555,7 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
 
     setIsLoadingAiSuggestions(true);
     try {
-      const { data: responseData, error } = await supabase.functions.invoke('generate-post', {
+      const { data: responseData, error } = await supabase.functions.invoke('gemini-brain', {
         body: {
           prompt: askAiInput,
           category: category,
