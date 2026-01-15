@@ -293,7 +293,8 @@ const onSubmit = async (data: FormData) => {
       setIsGenerating(false);
     }
   };
-  const handleResubmit = async () => {
+  
+ const handleResubmit = async () => {
     console.log("🔄 Resubmit started");
 
     if (!changeRequest.trim()) {
@@ -304,6 +305,9 @@ const onSubmit = async (data: FormData) => {
       });
       return;
     }
+
+    // 1. GET SESSION (Critical for 401 Fix)
+    const { data: { session } } = await supabase.auth.getSession();
 
     setIsResubmitting(true);
     try {
@@ -326,7 +330,11 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
           topic: refinementPrompt,
           tone: formData.tone,
           category: formData.category,
-          type: 'generate'
+          type: 'generate',
+          // Note: We are NOT passing userId here, so Refinements are FREE. 
+        },
+        headers: {
+            Authorization: `Bearer ${session?.access_token}` // <--- AUTH HEADER ADDED
         }
       });
 
@@ -352,7 +360,7 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
       setIsResubmitting(false);
     }
   };
-
+  
   const copyToClipboard = async () => {
     try {
       await navigator.clipboard.writeText(editMode ? editedPost : generatedPost);
@@ -598,6 +606,9 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
       return;
     }
 
+    // 1. GET SESSION (Critical for 401 Fix)
+    const { data: { session } } = await supabase.auth.getSession();
+
     setIsLoadingAiSuggestions(true);
     try {
       const { data: responseData, error } = await supabase.functions.invoke('generate-post', {
@@ -605,6 +616,10 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
           prompt: askAiInput,
           category: category,
           type: 'askai'
+          // Note: No userId passed here, so suggestions remain FREE.
+        },
+        headers: {
+            Authorization: `Bearer ${session?.access_token}` // <--- AUTH HEADER ADDED
         }
       });
 
