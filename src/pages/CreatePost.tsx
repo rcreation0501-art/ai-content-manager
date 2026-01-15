@@ -403,6 +403,7 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
   };
 
   // Handle saving to library
+ // Handle saving to library
   const handleSaveToLibrary = async () => {
     if (!postTitle.trim()) {
       toast({
@@ -435,6 +436,7 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
         originalContent: generatedPost
       };
 
+      // ✅ FIX: Removed profile.tenant_id (2nd argument)
       await ContentService.createPost({
         title: postTitle,
         content: content,
@@ -444,7 +446,7 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
         original_content: generatedPost,
         platform: postPlatform,
         tags: selectedTags
-      }, profile.tenant_id);
+      }); 
 
       toast({
         title: "Saved to Library!",
