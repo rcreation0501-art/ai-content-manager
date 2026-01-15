@@ -42,7 +42,7 @@ const Index = () => {
       <div className="max-w-6xl mx-auto space-y-6 p-6">
       <div className="mb-8">
         <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-red-600 mb-2">
-          Welcome back!
+          Welcome to Sasa Ai!
         </h1>
         <p className="text-muted-foreground">Here's an overview of your content performance</p>
       </div>
