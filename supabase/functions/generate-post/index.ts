@@ -1,4 +1,4 @@
-// FORCE DEPLOY: VERSION 5.1 (Stable + Auth Ready)
+// FORCE DEPLOY: VERSION 6.0 (Atomic Financial Safety)
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.21.0";
@@ -11,7 +11,7 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // 1️⃣ CORS FIRST (never after auth)
+  // 1️⃣ CORS FIRST
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -29,27 +29,57 @@ serve(async (req) => {
     // 3️⃣ SUPABASE CLIENT
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // 4️⃣ AUTH
+    // 4️⃣ AUTH (IDENTITY CHECK)
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "UNAUTHORIZED" }), { status: 401 });
+      return new Response(JSON.stringify({ error: "UNAUTHORIZED" }), { status: 401, headers: corsHeaders });
     }
 
     const jwt = authHeader.replace("Bearer ", "");
     const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
 
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "UNAUTHORIZED" }), { status: 401 });
+      return new Response(JSON.stringify({ error: "UNAUTHORIZED" }), { status: 401, headers: corsHeaders });
     }
 
-    // 5️⃣ BODY (SAFE PARSE)
+    // 5️⃣ BODY PARSING
     const body = await req.json().catch(() => ({}));
     const { topic, tone, type, prompt, category } = body;
 
-    const userContent =
-      prompt || topic || category || "The future of AI technology";
+    // 🛑 6️⃣ ATOMIC CREDIT CHECK (THE MONEY GATE) 🛑
+    // We only deduct credits for "generate", not "askai"
+    if (type === 'generate') {
+        // A. READ CURRENT BALANCE
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('credits')
+            .eq('id', user.id)
+            .single();
 
-    // 6️⃣ GEMINI
+        if (!profile || profile.credits < 1) {
+             return new Response(JSON.stringify({ error: "NO_CREDITS", message: "Insufficient credits" }), { status: 402, headers: corsHeaders });
+        }
+
+        // B. ATOMIC UPDATE (Race Condition Fix)
+        const { data: updated, error: deductError } = await supabase
+            .from('profiles')
+            .update({ credits: profile.credits - 1 })
+            .eq('id', user.id)
+            .eq('credits', profile.credits) // 🔒 Optimistic Lock: Only update if value hasn't changed
+            .select('credits')
+            .single();
+
+        if (deductError || !updated) {
+            console.error("Race condition detected for user:", user.id);
+            return new Response(
+                JSON.stringify({ error: "CREDIT_RACE_CONDITION", message: "Transaction failed, please try again." }),
+                { status: 409, headers: corsHeaders }
+            );
+        }
+    }
+
+    // 7️⃣ GEMINI GENERATION
+    const userContent = prompt || topic || category || "The future of AI technology";
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
@@ -84,7 +114,7 @@ Rules:
     const result = await model.generateContent(finalPrompt);
     const text = result.response.text().trim();
 
-    // 7️⃣ SUCCESS
+    // 8️⃣ SUCCESS
     return new Response(
       JSON.stringify({ content: text }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
