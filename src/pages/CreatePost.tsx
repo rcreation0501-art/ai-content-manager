@@ -274,10 +274,16 @@ const onSubmit = async (data: FormData) => {
       setGeneratedPost(text);
       setEditedPost(text);
       
-      const remainingCredits = Math.max(0, freshProfile.credits - 1);
+      // ✅ FIX: Re-fetch credits from DB (The Source of Truth)
+      const { data: updatedProfile } = await supabase
+        .from('profiles')
+        .select('credits')
+        .eq('id', user.id)
+        .single();
+
       toast({
         title: "Post Generated!",
-        description: `1 Credit used. You have ${remainingCredits} credits remaining.`
+        description: `1 Credit used. You have ${updatedProfile?.credits ?? 0} credits remaining.`
       });
 
     } catch (error: any) {
