@@ -92,6 +92,7 @@ export default function CreatePost() {
   const [showSuggestionDropdown, setShowSuggestionDropdown] = useState(false);
 
   // New dialog states
+  const [showTopUpModal, setShowTopUpModal] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [postTitle, setPostTitle] = useState("");
@@ -194,24 +195,54 @@ export default function CreatePost() {
     }
   };
 
-  const onSubmit = async (data: FormData) => {
+const onSubmit = async (data: FormData) => {
+    // 1. GET FRESH USER DATA & SESSION
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession(); 
+
+    if (!user || !session) {
+      toast({ title: "Error", description: "You must be logged in.", variant: "destructive" });
+      return;
+    }
+
+    const { data: freshProfile } = await supabase
+      .from('profiles')
+      .select('credits, created_at, is_subscribed')
+      .eq('id', user.id)
+      .single();
+
+    if (!freshProfile) {
+        toast({ title: "Error", description: "Could not fetch user profile.", variant: "destructive" });
+        return;
+    }
+
+    // --- GATE 1: FRONTEND CHECK 7-DAY TRIAL ---
+    const joinDate = new Date(freshProfile.created_at);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - joinDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 7 && !freshProfile.is_subscribed) {
+      alert("Your 7-Day Trial has expired! Please click 'Upgrade to Pro' in the sidebar to continue.");
+      return;
+    }
+
+    // --- GATE 2: FRONTEND CHECK CREDITS ---
+    if (freshProfile.credits <= 0) {
+      setShowTopUpModal(true);
+      return;
+    }
+
+    // --- GATE 3: RUN AI ---
     console.log("🚀 Generation started with Gemini Edge Function");
 
     let processedTopic = data.topic;
-    let finalTopicType = data.topicType;
-
     if (data.topicType === "url") {
       processedTopic = formatUrl(data.topic);
       if (!isValidUrl(data.topic)) {
-        toast({
-          title: "Invalid URL",
-          description: "Please enter a valid URL",
-          variant: "destructive"
-        });
+        toast({ title: "Invalid URL", description: "Please enter a valid URL", variant: "destructive" });
         return;
       }
-    } else if (data.topicType === "askai") {
-      finalTopicType = "text";
     }
 
     setIsGenerating(true);
@@ -222,32 +253,46 @@ export default function CreatePost() {
           topic: processedTopic,
           tone: data.tone,
           category: data.category,
-          type: 'generate'
+          type: 'generate',
+          userId: user.id 
+        },
+        headers: {
+            Authorization: `Bearer ${session.access_token}` 
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        if (error.status === 402 || error.message?.includes("NO_CREDITS")) {
+           setShowTopUpModal(true);
+           throw new Error("Insufficient credits. Please top up.");
+        }
+        throw error;
+      }
 
       const text = responseData?.content || "Generated post content will appear here...";
 
       setGeneratedPost(text);
       setEditedPost(text);
+      
+      const remainingCredits = Math.max(0, freshProfile.credits - 1);
       toast({
-        title: "Post Generated Successfully!",
-        description: "Your LinkedIn post is ready to review"
+        title: "Post Generated!",
+        description: `1 Credit used. You have ${remainingCredits} credits remaining.`
       });
+
     } catch (error: any) {
       console.error("❌ Error generating post:", error);
-      toast({
-        title: "Generation Failed",
-        description: error.message || "Failed to generate post. Please try again.",
-        variant: "destructive"
-      });
+      if (!error.message.includes("Insufficient credits")) {
+          toast({
+            title: "Generation Failed",
+            description: error.message || "Failed to generate post. Please try again.",
+            variant: "destructive"
+          });
+      }
     } finally {
       setIsGenerating(false);
     }
   };
-
   const handleResubmit = async () => {
     console.log("🔄 Resubmit started");
 
