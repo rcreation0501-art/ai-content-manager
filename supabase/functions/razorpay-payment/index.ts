@@ -9,16 +9,20 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// ✅ SERVER-SIDE PLAN CONFIGURATION (Strict Pricing)
 const PLANS = {
   'pro_monthly': {
-    amount: 399, // Affordable price for creators
+    amount: 399, 
+    currency: 'INR',
+    credits: 100
+  },
+  'pro_monthly_usd': {
+    amount: 8, 
+    currency: 'USD',
     credits: 100
   }
 }
 
 serve(async (req) => {
-  // 1. Handle CORS Preflight
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
@@ -40,9 +44,8 @@ serve(async (req) => {
     )
     if (userError || !user) throw new Error('Unauthorized')
 
-    const { action, plan = 'pro_monthly', currency = 'INR', payment_id, order_id, signature } = await req.json()
+    const { action, plan = 'pro_monthly', payment_id, order_id, signature } = await req.json()
 
-    // ✅ FIX 1: Plan Validation Guard
     const selectedPlan = PLANS[plan as keyof typeof PLANS];
     if (!selectedPlan) throw new Error('Invalid plan selection');
 
@@ -51,8 +54,8 @@ serve(async (req) => {
     // ---------------------------------------------------------
     if (action === 'create_order') {
       const options = {
-        amount: selectedPlan.amount * 100, // strictly from server config
-        currency: currency,
+        amount: selectedPlan.amount * 100, 
+        currency: selectedPlan.currency,   
         receipt: `receipt_${user.id.slice(0, 8)}_${Date.now()}`,
         notes: { user_id: user.id, plan_id: plan }
       }
@@ -67,7 +70,12 @@ serve(async (req) => {
     // ACTION 2: VERIFY PAYMENT & ADD CREDITS
     // ---------------------------------------------------------
     if (action === 'verify_payment') {
-      // ✅ FIX 2: Check for replay using maybeSingle() to avoid throwing on "not found"
+      // ✅ FIX 1: Guard against missing data
+      if (!payment_id || !order_id || !signature) {
+        throw new Error("Incomplete payment data");
+      }
+
+      // Replay Protection
       const { data: existingTx } = await supabaseAdmin
         .from('payment_transactions')
         .select('id')
@@ -92,31 +100,28 @@ serve(async (req) => {
 
       if (generated_signature !== signature) throw new Error("Invalid Signature")
 
-      // Increment Logic
+      // ✅ FIX 2: Use maybeSingle() for profile fetch
       const { data: profile } = await supabaseAdmin
-        .from('profiles').select('credits').eq('id', user.id).single();
+        .from('profiles').select('credits').eq('id', user.id).maybeSingle();
 
-      const newCredits = (profile?.credits || 0) + selectedPlan.credits;
+      if (!profile) throw new Error("Profile not found");
 
-      // Update Profile
-      const { error: updateError } = await supabaseAdmin
-        .from('profiles')
-        .update({ 
+      const newCredits = (profile.credits || 0) + selectedPlan.credits;
+
+      const { error: updateError } = await supabaseAdmin.from('profiles').update({ 
           credits: newCredits, 
           is_subscribed: true,
           subscription_expiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-        })
-        .eq('id', user.id)
+        }).eq('id', user.id)
 
       if (updateError) throw updateError;
 
-      // ✅ FIX 3: Complete Transaction Log with proper fields
       await supabaseAdmin.from('payment_transactions').insert({
         user_id: user.id,
         payment_id: payment_id,
         order_id: order_id,
         amount: selectedPlan.amount,
-        currency: currency,
+        currency: selectedPlan.currency,
         status: 'success'
       });
 
@@ -126,14 +131,12 @@ serve(async (req) => {
       })
     }
 
-    // ✅ FIX 4: Default response for invalid actions
     return new Response(JSON.stringify({ error: 'Invalid action' }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error: any) {
-    console.error('Function Error:', error.message)
     return new Response(JSON.stringify({ error: error.message }), { 
       status: 400, headers: corsHeaders 
     })
