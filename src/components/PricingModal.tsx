@@ -18,13 +18,10 @@ const handlePayment = async () => {
     setLoading(true);
     try {
       const plan = isIndia ? 'pro_monthly' : 'pro_monthly_usd';
-      
-      // 1. Invoke Edge Function with explicit headers to satisfy CORS
+
+      // 1. Invoke Edge Function
       const { data, error } = await supabase.functions.invoke('razorpay-payment', {
-        body: { action: 'create_order', plan },
-        headers: {
-          'Content-Type': 'application/json',
-        }
+        body: { action: 'create_order', plan }
       });
 
       if (error) throw error;

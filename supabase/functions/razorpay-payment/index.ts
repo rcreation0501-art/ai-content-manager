@@ -1,3 +1,4 @@
+// Final CORS Fix – Jan 2026
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0"
 import Razorpay from "npm:razorpay@2.9.2"
@@ -11,19 +12,24 @@ const corsHeaders = {
 
 const PLANS = {
   'pro_monthly': {
-    amount: 399, 
+    amount: 399,
     currency: 'INR',
     credits: 100
   },
   'pro_monthly_usd': {
-    amount: 8, 
+    amount: 8,
     currency: 'USD',
     credits: 100
   }
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders
+    })
+  }
 
   try {
     const razorpay = new Razorpay({
@@ -137,8 +143,9 @@ serve(async (req) => {
     });
 
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), { 
-      status: 400, headers: corsHeaders 
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   }
 })
