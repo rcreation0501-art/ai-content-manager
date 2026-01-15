@@ -148,9 +148,9 @@ export function AppSidebar() {
           </SidebarGroup>
         </SidebarContent>
 
-        <SidebarFooter className="p-4 space-y-4">
+       <SidebarFooter className="p-4 space-y-4">
           
-          {/* ✨ TRIAL / STATUS WIDGET ✨ */}
+          {/* ✨ TRIAL / STATUS / CREDITS WIDGET ✨ */}
           {user && (
             <div className={`px-4 py-3 rounded-xl border ${
               isAdmin 
@@ -159,6 +159,7 @@ export function AppSidebar() {
                   ? 'bg-red-500/10 border-red-500/50' 
                   : 'bg-gray-800 border-gray-700'
             }`}>
+               {/* 1. Status Header */}
                <div className="flex items-center justify-between mb-1">
                  <p className="text-xs text-gray-400">Status</p>
                  {isAdmin ? (
@@ -170,6 +171,7 @@ export function AppSidebar() {
                  )}
                </div>
                
+               {/* 2. Status Text & Days Left */}
                <div className="flex items-center justify-between">
                  <span className={`text-sm font-bold ${
                    isAdmin ? 'text-white' : isExpired ? 'text-red-400' : 'text-white'
@@ -185,6 +187,30 @@ export function AppSidebar() {
                    </span>
                  )}
                </div>
+
+               {/* 👇 3. NEW: CREDITS COUNTER (Inserted Here) 👇 */}
+               {!isAdmin && (
+                 <div className="mt-3 pt-3 border-t border-gray-700/50">
+                   <div className="flex items-center justify-between text-xs mb-1.5">
+                     <span className="text-gray-400">Available Credits</span>
+                     <span className="font-mono font-bold text-white">
+                       {(user as any)?.credits ?? 0}
+                     </span>
+                   </div>
+                   
+                   {/* Credits Progress Bar */}
+                   <div className="w-full bg-gray-900/50 rounded-full h-1.5 overflow-hidden border border-gray-700/30">
+                     <div 
+                       className="bg-gradient-to-r from-blue-500 to-cyan-400 h-full rounded-full transition-all duration-500"
+                       style={{ 
+                         width: `${Math.min((((user as any)?.credits || 0) / 100) * 100, 100)}%` 
+                       }}
+                     />
+                   </div>
+                 </div>
+               )}
+               {/* 👆 END NEW CODE 👆 */}
+
             </div>
           )}
 
@@ -194,7 +220,7 @@ export function AppSidebar() {
               onClick={() => setShowPricing(true)}
               className={`w-full text-white border-0 shadow-lg ${
                 isExpired 
-                  ? 'bg-red-600 hover:bg-red-700 animate-pulse'
+                  ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
                   : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500'
               }`}
             >
