@@ -468,6 +468,7 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
   };
 
   // Handle scheduling post
+// Handle scheduling post
   const handleSchedulePost = async () => {
     if (!postTitle.trim()) {
       toast({
@@ -514,6 +515,7 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
       const scheduledDateTime = new Date(selectedDate);
       scheduledDateTime.setHours(parseInt(hours), parseInt(minutes));
 
+      // ✅ FIXED: Removed the crashing "profile.tenant_id"
       await ContentService.createPost({
         title: postTitle,
         content: content,
@@ -524,7 +526,7 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
         original_content: generatedPost,
         platform: postPlatform,
         tags: selectedTags
-      }, profile.tenant_id);
+      }); 
 
       toast({
         title: "Post Scheduled!",
