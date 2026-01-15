@@ -75,7 +75,6 @@ export default function CreatePost() {
   const [isResubmitting, setIsResubmitting] = useState(false);
   const [changeRequest, setChangeRequest] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date>();
-  const [calendarOpen, setCalendarOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editedPost, setEditedPost] = useState("");
 
@@ -216,14 +215,19 @@ const onSubmit = async (data: FormData) => {
         return;
     }
 
-    // --- GATE 1: FRONTEND CHECK 7-DAY TRIAL ---
+ // --- GATE 1: FRONTEND CHECK 7-DAY TRIAL ---
     const joinDate = new Date(freshProfile.created_at);
     const now = new Date();
     const diffTime = Math.abs(now.getTime() - joinDate.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     if (diffDays > 7 && !freshProfile.is_subscribed) {
-      alert("Your 7-Day Trial has expired! Please click 'Upgrade to Pro' in the sidebar to continue.");
+      setShowTopUpModal(true); // <--- UX POLISH: Uses the nice modal instead of browser alert
+      toast({
+        title: "Trial Expired",
+        description: "Please upgrade to Pro to continue creating content.",
+        variant: "destructive"
+      });
       return;
     }
 
