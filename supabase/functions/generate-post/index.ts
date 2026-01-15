@@ -1,63 +1,100 @@
-// FORCE DEPLOY: VERSION 5.0 (Invincible Mode)
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.21.0"
+// FORCE DEPLOY: VERSION 5.1 (Stable + Auth Ready)
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai@0.21.0";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
 serve(async (req) => {
-  // 1. Handle CORS
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+  // 1️⃣ CORS FIRST (never after auth)
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const apiKey = Deno.env.get('GOOGLE_API_KEY') || Deno.env.get('GEMINI_API_KEY');
-    if (!apiKey) throw new Error('API Key missing!');
+    // 2️⃣ ENV CHECK
+    const apiKey = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    // 2. DEFENSIVE PARSE (Catch empty data)
-    const body = await req.json().catch(() => ({})); 
+    if (!apiKey || !supabaseUrl || !serviceKey) {
+      throw new Error("Missing environment variables");
+    }
+
+    // 3️⃣ SUPABASE CLIENT
+    const supabase = createClient(supabaseUrl, serviceKey);
+
+    // 4️⃣ AUTH
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "UNAUTHORIZED" }), { status: 401 });
+    }
+
+    const jwt = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "UNAUTHORIZED" }), { status: 401 });
+    }
+
+    // 5️⃣ BODY (SAFE PARSE)
+    const body = await req.json().catch(() => ({}));
     const { topic, tone, type, prompt, category } = body;
 
-    // 3. THE FALLBACK (The Anti-400 Logic)
-    // If input is empty, we USE A DEFAULT. This prevents the 400 Error.
-    const userContent = prompt || topic || category || "The future of AI technology"; 
+    const userContent =
+      prompt || topic || category || "The future of AI technology";
 
-    // 4. Setup Gemini
-    const genAI = new GoogleGenerativeAI(apiKey)
-   // UPGRADE TO FLASH
-const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+    // 6️⃣ GEMINI
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     let finalPrompt = "";
 
-    if (type === 'askai') {
-      finalPrompt = `I need 3 LinkedIn post ideas. Context: "${userContent}".
-      Return strictly valid JSON (no markdown):
-      { "ideas": [{ "title": "Title", "topic": "Topic", "tone": "Tone" }] }`;
+    if (type === "askai") {
+      finalPrompt = `
+Return ONLY valid JSON.
+Generate 3 LinkedIn post ideas for:
+"${userContent}"
+
+{
+  "ideas": [
+    { "title": "", "topic": "", "tone": "" }
+  ]
+}`;
     } else {
-      finalPrompt = `Write a ${tone || 'professional'} LinkedIn post about: "${userContent}". 
-      Keep it engaging, under 200 words.`;
+      finalPrompt = `
+Write a professional LinkedIn post.
+
+Topic: ${userContent}
+Tone: ${tone || "professional"}
+
+Rules:
+- Strong hook
+- Short paragraphs
+- Emojis
+- CTA at end
+`;
     }
 
-    const result = await model.generateContent(finalPrompt)
-    const response = result.response
-    const text = response.text().trim()
+    const result = await model.generateContent(finalPrompt);
+    const text = result.response.text().trim();
 
-    return new Response(JSON.stringify({ content: text }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    })
+    // 7️⃣ SUCCESS
+    return new Response(
+      JSON.stringify({ content: text }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
 
   } catch (error) {
-    console.error("Server Error:", error.message)
-    // Return 500, NEVER 400.
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500,
-    })
+    console.error("Edge Function Error:", error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: corsHeaders }
+    );
   }
-})
-// Go
+});
