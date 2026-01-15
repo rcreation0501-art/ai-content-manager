@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { useToast } from '../hooks/use-toast';
 
 interface PricingModalProps {
   user: any;
@@ -7,95 +9,98 @@ interface PricingModalProps {
 
 export default function PricingModal({ user, onClose }: PricingModalProps) {
   const [isIndia, setIsIndia] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
-  // ✅ HARDCODED LINKS (Bypassing Database completely)
-  const INSTAMOJO_LINK = "https://aiforfuture.mojo.page/pro-plan-linkedin-ai-posting";
-  const RAZORPAY_LINK = "https://rzp.io/rzp/iBZbWDT";
+  const handleSubscribe = async () => {
+    setIsLoading(true);
+    try {
+      // 1. Create Order on Server
+      const { data, error } = await supabase.functions.invoke('razorpay-payment', {
+        body: { 
+          action: 'create_order', 
+          plan: isIndia ? 'pro_monthly_inr' : 'pro_monthly_usd',
+          currency: isIndia ? 'INR' : 'USD'
+        }
+      });
 
-  const handleSubscribe = () => {
-    // 1. Get Email safely
-    const userEmail = user?.email || "";
+      if (error) throw error;
 
-    let finalUrl = "";
+      // 2. Open Razorpay
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID, // We will add this next!
+        amount: data.amount,
+        currency: data.currency,
+        name: "Sasa AI",
+        description: "Pro Plan Upgrade",
+        order_id: data.id,
+        prefill: {
+          name: user?.user_metadata?.full_name,
+          email: user?.email,
+        },
+        theme: { color: "#2563EB" },
+        handler: async (response: any) => {
+          // 3. Verify Payment & Add Credits
+          const { error: verifyError } = await supabase.functions.invoke('razorpay-payment', {
+            body: {
+              action: 'verify_payment',
+              payment_id: response.razorpay_payment_id,
+              order_id: response.razorpay_order_id,
+              signature: response.razorpay_signature,
+              user_id: user.id
+            }
+          });
 
-    if (isIndia) {
-      // 🇮🇳 INDIA -> Instamojo
-      finalUrl = `${INSTAMOJO_LINK}?data_email=${userEmail}&data_name=${userEmail}`;
-    } else {
-      // 🌍 GLOBAL -> Razorpay
-      finalUrl = `${RAZORPAY_LINK}?email=${userEmail}`;
-    }
+          if (verifyError) {
+            toast({ title: "Verification Failed", variant: "destructive" });
+          } else {
+            toast({ title: "🎉 Success!", description: "Credits added instantly!" });
+            onClose();
+            window.location.reload(); // Refresh to show new credits
+          }
+        }
+      };
 
-    // 2. Open in New Tab
-    if (finalUrl) {
-      window.open(finalUrl, '_blank'); 
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+
+    } catch (error: any) {
+      console.error("Payment Error:", error);
+      toast({ title: "Error", description: "Could not start payment.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full relative overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">✕</button>
         
-        {/* Close Button */}
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
-          ✕
-        </button>
+        <h2 className="text-2xl font-bold text-center mb-2">Upgrade to Pro</h2>
+        <p className="text-center text-gray-500 mb-6">Get 100 Credits / Month</p>
 
-        <div className="p-8">
-          <h2 className="text-3xl font-extrabold text-gray-900 text-center mb-2">Upgrade to Pro</h2>
-          <p className="text-center text-gray-500 mb-6">Unlock full access to AI tools</p>
-
-          {/* Toggle Switch */}
-          <div className="flex justify-center mb-8">
-            <div className="bg-gray-100 p-1 rounded-full flex relative">
-              <button
-                onClick={() => setIsIndia(true)}
-                className={`px-6 py-2 rounded-full text-sm font-bold transition-all duration-300 ${
-                  isIndia ? 'bg-white text-blue-600 shadow-md' : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                🇮🇳 India
-              </button>
-              <button
-                onClick={() => setIsIndia(false)}
-                className={`px-6 py-2 rounded-full text-sm font-bold transition-all duration-300 ${
-                  !isIndia ? 'bg-white text-purple-600 shadow-md' : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                🌍 Global
-              </button>
-            </div>
+        {/* Toggle */}
+        <div className="flex justify-center mb-6">
+          <div className="bg-gray-100 p-1 rounded-full flex">
+            <button onClick={() => setIsIndia(true)} className={`px-4 py-2 rounded-full text-sm font-bold ${isIndia ? 'bg-white shadow text-blue-600' : 'text-gray-500'}`}>🇮🇳 India</button>
+            <button onClick={() => setIsIndia(false)} className={`px-4 py-2 rounded-full text-sm font-bold ${!isIndia ? 'bg-white shadow text-purple-600' : 'text-gray-500'}`}>🌍 Global</button>
           </div>
-
-          {/* Price Display */}
-          <div className="text-center mb-8">
-            <div className="flex justify-center items-baseline">
-              <span className="text-5xl font-black text-gray-900">
-                {isIndia ? '₹1,499' : '$15'}
-              </span>
-              <span className="text-xl text-gray-500 ml-2">/mo</span>
-            </div>
-            <p className="text-xs font-medium text-gray-400 mt-2 uppercase tracking-wide">
-              {isIndia ? 'UPI • RuPay • Wallets' : 'Credit Card • PayPal'}
-            </p>
-          </div>
-
-          {/* Action Button */}
-          <button
-            onClick={handleSubscribe}
-            className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 ${
-              isIndia 
-                ? 'bg-gradient-to-r from-blue-600 to-blue-500' 
-                : 'bg-gradient-to-r from-purple-600 to-indigo-600'
-            }`}
-          >
-            {isIndia ? 'Pay with Instamojo' : 'Pay with Razorpay'}
-          </button>
-          
-          <p className="text-xs text-center text-gray-400 mt-4">
-            Secure payment • Cancel anytime
-          </p>
         </div>
+
+        {/* Price */}
+        <div className="text-center mb-8">
+           <span className="text-4xl font-black">{isIndia ? '₹1,499' : '$19'}</span>
+           <span className="text-gray-500">/mo</span>
+        </div>
+
+        <button 
+          onClick={handleSubscribe} 
+          disabled={isLoading}
+          className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all"
+        >
+          {isLoading ? 'Processing...' : 'Pay Securely with Razorpay'}
+        </button>
       </div>
     </div>
   );
