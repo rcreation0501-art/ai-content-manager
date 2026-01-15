@@ -14,29 +14,31 @@ export default function PricingModal({ user, onClose }: PricingModalProps) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  const handlePayment = async () => {
+const handlePayment = async () => {
     setLoading(true);
     try {
-      // 1. Select Plan based on toggle
       const plan = isIndia ? 'pro_monthly' : 'pro_monthly_usd';
       
-      // 2. Create Order via Secure Edge Function
+      // 1. Invoke Edge Function with explicit headers to satisfy CORS
       const { data, error } = await supabase.functions.invoke('razorpay-payment', {
-        body: { action: 'create_order', plan }
+        body: { action: 'create_order', plan },
+        headers: {
+          'Content-Type': 'application/json',
+        }
       });
 
       if (error) throw error;
 
-      // 3. Configure Razorpay Options
+      // 2. Open Razorpay Checkout
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID, // Ensure this env var exists
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: data.amount,
         currency: data.currency,
         name: "Sasa AI",
-        description: isIndia ? "Pro Monthly Plan (India)" : "Pro Monthly Plan (Global)",
+        description: isIndia ? "Pro Plan - India" : "Pro Plan - Global",
         order_id: data.id,
         handler: async (response: any) => {
-          // 4. Secure Backend Verification
+          // 3. Verify Payment
           const { error: verifyError } = await supabase.functions.invoke('razorpay-payment', {
             body: { 
               action: 'verify_payment',
@@ -48,20 +50,17 @@ export default function PricingModal({ user, onClose }: PricingModalProps) {
           });
 
           if (verifyError) {
-            toast({ title: "Verification Failed", description: "Please contact support if amount was deducted.", variant: "destructive" });
+            toast({ title: "Verification Failed", variant: "destructive" });
           } else {
-            toast({ title: "Payment Successful!", description: "100 Credits have been added to your account." });
+            toast({ title: "Success!", description: "100 Credits added." });
             onClose();
-            window.location.reload(); // Refresh to update Sidebar credits
+            window.location.reload();
           }
         },
-        prefill: {
-          email: user?.email,
-          contact: "" // Razorpay will ask if not provided
-        },
-        theme: { color: "#ef4444" }, // Matches your brand red
-        modal: {
-          ondismiss: () => setLoading(false) // Reset loading if user closes popup
+        prefill: { email: user?.email },
+        theme: { color: "#ef4444" },
+        modal: { 
+          ondismiss: () => setLoading(false) 
         }
       };
 
@@ -69,7 +68,11 @@ export default function PricingModal({ user, onClose }: PricingModalProps) {
       rzp.open();
     } catch (err: any) {
       console.error("Payment Start Error:", err);
-      toast({ title: "Payment Error", description: err.message || "Could not initialize checkout.", variant: "destructive" });
+      toast({ 
+        title: "Connection Issue", 
+        description: "Could not reach the payment server. Please refresh and try again.", 
+        variant: "destructive" 
+      });
     } finally {
       setLoading(false);
     }
