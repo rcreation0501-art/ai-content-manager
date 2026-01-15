@@ -1,111 +1,141 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0"
 import Razorpay from "npm:razorpay@2.9.2"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { crypto } from "https://deno.land/std@0.177.0/crypto/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
+// ✅ SERVER-SIDE PLAN CONFIGURATION (Strict Pricing)
+const PLANS = {
+  'pro_monthly': {
+    amount: 399, // Affordable price for creators
+    credits: 100
+  }
 }
 
 serve(async (req) => {
-  // 1. Handle CORS Preflight (Browser Check)
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  // 1. Handle CORS Preflight
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    // 2. Initialize Supabase Admin (To write credits)
+    const razorpay = new Razorpay({
+      key_id: Deno.env.get('RAZORPAY_KEY_ID') || '',
+      key_secret: Deno.env.get('RAZORPAY_KEY_SECRET') || '',
+    })
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // 3. SECURE AUTH: Get User from the Token
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      throw new Error('No authorization header passed')
-    }
+    if (!authHeader) throw new Error('No authorization header passed')
 
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(
       authHeader.replace('Bearer ', '')
     )
+    if (userError || !user) throw new Error('Unauthorized')
 
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
-    }
+    const { action, plan = 'pro_monthly', currency = 'INR', payment_id, order_id, signature } = await req.json()
 
-    // 4. Initialize Razorpay
-    const razorpay = new Razorpay({
-      key_id: Deno.env.get('RAZORPAY_KEY_ID'),
-      key_secret: Deno.env.get('RAZORPAY_KEY_SECRET'),
-    })
+    // ✅ FIX 1: Plan Validation Guard
+    const selectedPlan = PLANS[plan as keyof typeof PLANS];
+    if (!selectedPlan) throw new Error('Invalid plan selection');
 
-    // 5. Parse Request
-    const { action, plan, currency, payment_id, order_id, signature } = await req.json()
-
-    // --- ACTION: CREATE ORDER ---
+    // ---------------------------------------------------------
+    // ACTION 1: CREATE ORDER
+    // ---------------------------------------------------------
     if (action === 'create_order') {
-      // 1499 INR or 19 USD (in paise/cents)
-      const amount = (currency === 'INR') ? 149900 : 1900 
-      
       const options = {
-        amount: amount,
+        amount: selectedPlan.amount * 100, // strictly from server config
         currency: currency,
         receipt: `receipt_${user.id.slice(0, 8)}_${Date.now()}`,
-        notes: {
-          user_id: user.id, // Store User ID in Razorpay metadata
-          plan: plan
-        }
+        notes: { user_id: user.id, plan_id: plan }
       }
 
       const order = await razorpay.orders.create(options)
-      return new Response(JSON.stringify(order), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify(order), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      })
     }
 
-    // --- ACTION: VERIFY PAYMENT & ADD CREDITS ---
+    // ---------------------------------------------------------
+    // ACTION 2: VERIFY PAYMENT & ADD CREDITS
+    // ---------------------------------------------------------
     if (action === 'verify_payment') {
-      const text = order_id + "|" + payment_id
-      
+      // ✅ FIX 2: Check for replay using maybeSingle() to avoid throwing on "not found"
+      const { data: existingTx } = await supabaseAdmin
+        .from('payment_transactions')
+        .select('id')
+        .eq('payment_id', payment_id)
+        .maybeSingle();
+
+      if (existingTx) throw new Error("Payment already processed");
+
       // Verify Signature
-      const keySecret = Deno.env.get('RAZORPAY_KEY_SECRET') || "";
-      const encoder = new TextEncoder();
-      const keyData = encoder.encode(keySecret);
-      const msgData = encoder.encode(text);
+      const text = order_id + "|" + payment_id
+      const secret = Deno.env.get('RAZORPAY_KEY_SECRET') || ""
+      const encoder = new TextEncoder()
+      const keyData = encoder.encode(secret)
+      const msgData = encoder.encode(text)
 
       const cryptoKey = await crypto.subtle.importKey(
         "raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
-      );
-      const signatureBuffer = await crypto.subtle.sign("HMAC", cryptoKey, msgData);
-      const signatureArray = Array.from(new Uint8Array(signatureBuffer));
-      const generated_signature = signatureArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      )
+      const signatureBuffer = await crypto.subtle.sign("HMAC", cryptoKey, msgData)
+      const generated_signature = Array.from(new Uint8Array(signatureBuffer))
+        .map(b => b.toString(16).padStart(2, '0')).join('')
 
-      if (generated_signature === signature) {
-        console.log(`✅ Payment Verified for User: ${user.id}`);
+      if (generated_signature !== signature) throw new Error("Invalid Signature")
 
-        // 1. Add Credits to Profile
-        const { error: updateError } = await supabaseAdmin
-          .from('profiles')
-          .update({ 
-            credits: 100,         
-            is_subscribed: true,  
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', user.id)
+      // Increment Logic
+      const { data: profile } = await supabaseAdmin
+        .from('profiles').select('credits').eq('id', user.id).single();
 
-        if (updateError) throw updateError;
+      const newCredits = (profile?.credits || 0) + selectedPlan.credits;
 
-        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-      } else {
-        throw new Error("Invalid Signature")
-      }
+      // Update Profile
+      const { error: updateError } = await supabaseAdmin
+        .from('profiles')
+        .update({ 
+          credits: newCredits, 
+          is_subscribed: true,
+          subscription_expiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        })
+        .eq('id', user.id)
+
+      if (updateError) throw updateError;
+
+      // ✅ FIX 3: Complete Transaction Log with proper fields
+      await supabaseAdmin.from('payment_transactions').insert({
+        user_id: user.id,
+        payment_id: payment_id,
+        order_id: order_id,
+        amount: selectedPlan.amount,
+        currency: currency,
+        status: 'success'
+      });
+
+      return new Response(JSON.stringify({ success: true, balance: newCredits }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200 
+      })
     }
 
-    return new Response(JSON.stringify({ error: 'Invalid Action' }), { status: 400, headers: corsHeaders })
+    // ✅ FIX 4: Default response for invalid actions
+    return new Response(JSON.stringify({ error: 'Invalid action' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
 
   } catch (error: any) {
-    console.error("Function Error:", error);
-    return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: corsHeaders })
+    console.error('Function Error:', error.message)
+    return new Response(JSON.stringify({ error: error.message }), { 
+      status: 400, headers: corsHeaders 
+    })
   }
 })
-// Trigger deployment 🚀
