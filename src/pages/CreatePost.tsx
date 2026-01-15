@@ -294,7 +294,7 @@ const onSubmit = async (data: FormData) => {
     }
   };
   
- const handleResubmit = async () => {
+const handleResubmit = async () => {
     console.log("🔄 Resubmit started");
 
     if (!changeRequest.trim()) {
@@ -306,7 +306,7 @@ const onSubmit = async (data: FormData) => {
       return;
     }
 
-    // 1. GET SESSION (Critical for 401 Fix)
+    // 1. GET SESSION
     const { data: { session } } = await supabase.auth.getSession();
 
     setIsResubmitting(true);
@@ -330,11 +330,10 @@ Please provide the rewritten post only. Maintain professional LinkedIn formattin
           topic: refinementPrompt,
           tone: formData.tone,
           category: formData.category,
-          type: 'generate',
-          // Note: We are NOT passing userId here, so Refinements are FREE. 
+          type: 'refine', // ✅ FIXED: 'refine' makes it FREE
         },
         headers: {
-            Authorization: `Bearer ${session?.access_token}` // <--- AUTH HEADER ADDED
+            Authorization: `Bearer ${session?.access_token}`
         }
       });
 
