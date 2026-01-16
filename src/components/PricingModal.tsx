@@ -20,11 +20,8 @@ const handlePayment = async () => {
       const plan = isIndia ? 'pro_monthly' : 'pro_monthly_usd';
 
       // 1. Invoke Edge Function
-     const { data, error } = await supabase.functions.invoke('razorpay-payment', {
-  body: { action: 'create_order', plan },
-  headers: {
-    'Cache-Control': 'no-cache'
-  }
+  const { data, error } = await supabase.functions.invoke('razorpay-payment', {
+  body: { action: 'create_order', plan }
 });
 
 
