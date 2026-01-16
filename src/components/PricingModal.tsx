@@ -37,15 +37,17 @@ const handlePayment = async () => {
         order_id: data.id,
         handler: async (response: any) => {
           // 3. Verify Payment
-          const { error: verifyError } = await supabase.functions.invoke('razorpay-payment', {
-            body: { 
-              action: 'verify_payment',
-              plan,
-              payment_id: response.razorpay_payment_id,
-              order_id: response.razorpay_order_id,
-              signature: response.razorpay_signature
-            }
-          });
+         const { error: verifyError } = await supabase.functions.invoke('razorpay-payment', {
+  body: { 
+    action: 'verify_payment',
+    plan,
+    payment_id: response.razorpay_payment_id,
+    order_id: response.razorpay_order_id,
+    signature: response.razorpay_signature,
+    user_id: user.id // 🔥 REQUIRED
+  }
+});
+
 
           if (verifyError) {
             toast({ title: "Verification Failed", variant: "destructive" });
