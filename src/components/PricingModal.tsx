@@ -10,19 +10,51 @@ interface PricingModalProps {
 }
 
 export default function PricingModal({ user, onClose }: PricingModalProps) {
-  const [isIndia, setIsIndia] = useState(true);
-  const [loading, setLoading] = useState(false);
+ const [isIndia, setIsIndia] = useState(true);
+const [loading, setLoading] = useState(false);
+const [razorpayReady, setRazorpayReady] = useState(false); // 🔥 Add this
   const { toast } = useToast();
 
   // --- FIX: Load Razorpay Script on Mount ---
-  useEffect(() => {
+useEffect(() => {
+    // 1. Check if Razorpay is already available (e.g., from a previous mount)
+    if ((window as any).Razorpay) {
+      setRazorpayReady(true);
+      return;
+    }
+
     const script = document.createElement('script');
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.async = true;
+
+    // 2. Update state once the script is loaded
+    script.onload = () => {
+      setRazorpayReady(true);
+      console.log('✅ Razorpay SDK loaded and ready');
+    };
+
+    script.onerror = () => {
+      console.error("❌ Razorpay SDK failed to load");
+      setLoading(false);
+    };
+
     document.body.appendChild(script);
 
     return () => {
-      document.body.removeChild(script);
+      // Clean up the script tag if the component unmounts
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
+  }, []);
+
+    document.body.appendChild(script);
+
+    return () => {
+      // Clean up the script tag if the component unmounts
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
     };
   }, []);
 
