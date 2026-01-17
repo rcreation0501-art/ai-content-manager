@@ -48,19 +48,19 @@ useEffect(() => {
     };
   }, []);
 
-    document.body.appendChild(script);
-
-    return () => {
-      // Clean up the script tag if the component unmounts
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
-      }
-    };
-  }, []);
-
   const handlePayment = async () => {
-    // Check if script loaded successfully
-    if (!(window as any).Razorpay) {
+    // 1. 🔥 PASTE THIS NEW BLOCK HERE
+    if (!import.meta.env.VITE_RAZORPAY_KEY_ID) {
+      toast({
+        title: "Configuration Error",
+        description: "Payment key is missing. Contact support.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // 2. Your existing check (KEEP THIS)
+    if (!razorpayReady) {
       toast({
         title: "Payment Module Loading",
         description: "Please wait a moment and try again.",
@@ -69,6 +69,7 @@ useEffect(() => {
       return;
     }
 
+    // ... rest of your code
     setLoading(true);
     try {
       const plan = isIndia ? 'pro_monthly' : 'pro_monthly_usd';
@@ -198,7 +199,7 @@ useEffect(() => {
         {/* Action Button */}
         <Button 
           onClick={handlePayment} 
-          disabled={loading}
+         disabled={loading || !razorpayReady}
           className="w-full bg-white hover:bg-gray-200 text-black h-14 rounded-2xl text-lg font-black italic tracking-tight shadow-xl shadow-red-500/10"
         >
           {loading ? 'INITIALIZING...' : 'ACTIVATE PRO NOW'}
