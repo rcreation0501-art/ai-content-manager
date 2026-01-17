@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Check, Globe, ShieldCheck, Zap } from 'lucide-react';
 import { Button } from './ui/button';
 import { supabase } from '@/lib/supabase';
@@ -14,16 +14,37 @@ export default function PricingModal({ user, onClose }: PricingModalProps) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-const handlePayment = async () => {
+  // --- FIX: Load Razorpay Script on Mount ---
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
+  const handlePayment = async () => {
+    // Check if script loaded successfully
+    if (!(window as any).Razorpay) {
+      toast({
+        title: "Payment Module Loading",
+        description: "Please wait a moment and try again.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const plan = isIndia ? 'pro_monthly' : 'pro_monthly_usd';
 
       // 1. Invoke Edge Function
-  const { data, error } = await supabase.functions.invoke('razorpay-payment', {
-  body: { action: 'create_order', plan }
-});
-
+      const { data, error } = await supabase.functions.invoke('razorpay-payment', {
+        body: { action: 'create_order', plan }
+      });
 
       if (error) throw error;
 
@@ -37,17 +58,16 @@ const handlePayment = async () => {
         order_id: data.id,
         handler: async (response: any) => {
           // 3. Verify Payment
-         const { error: verifyError } = await supabase.functions.invoke('razorpay-payment', {
-  body: { 
-    action: 'verify_payment',
-    plan,
-    payment_id: response.razorpay_payment_id,
-    order_id: response.razorpay_order_id,
-    signature: response.razorpay_signature,
-    user_id: user.id // 🔥 REQUIRED
-  }
-});
-
+          const { error: verifyError } = await supabase.functions.invoke('razorpay-payment', {
+            body: { 
+              action: 'verify_payment',
+              plan,
+              payment_id: response.razorpay_payment_id,
+              order_id: response.razorpay_order_id,
+              signature: response.razorpay_signature,
+              user_id: user.id // 🔥 REQUIRED
+            }
+          });
 
           if (verifyError) {
             toast({ title: "Verification Failed", variant: "destructive" });
