@@ -49,6 +49,8 @@ useEffect(() => {
   }, []);
 
   const handlePayment = async () => {
+    // 0. 🔥 Prevent double-clicks
+    if (loading) return;
     // 1. 🔥 PASTE THIS NEW BLOCK HERE
     if (!import.meta.env.VITE_RAZORPAY_KEY_ID) {
       toast({
@@ -202,7 +204,7 @@ useEffect(() => {
          disabled={loading || !razorpayReady}
           className="w-full bg-white hover:bg-gray-200 text-black h-14 rounded-2xl text-lg font-black italic tracking-tight shadow-xl shadow-red-500/10"
         >
-          {loading ? 'INITIALIZING...' : 'ACTIVATE PRO NOW'}
+         {loading ? 'INITIALIZING...' : razorpayReady ? 'ACTIVATE PRO NOW' : 'LOADING PAYMENT...'}
         </Button>
         
         <p className="text-[10px] text-center text-gray-600 mt-6 uppercase tracking-widest font-bold">
