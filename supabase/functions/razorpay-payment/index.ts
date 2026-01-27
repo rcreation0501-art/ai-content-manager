@@ -1,4 +1,4 @@
-// Final CORS Fix – Jan 2026
+// Final Production Version - Razorpay Payment Handler
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0"
 import Razorpay from "npm:razorpay@2.9.2"
@@ -24,14 +24,13 @@ const PLANS = {
 }
 
 serve(async (req) => {
+  // 1. Handle CORS
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders
-    })
+    return new Response(null, { status: 200, headers: corsHeaders })
   }
 
   try {
+    // 2. Setup Razorpay & Supabase
     const razorpay = new Razorpay({
       key_id: Deno.env.get('RAZORPAY_KEY_ID') || '',
       key_secret: Deno.env.get('RAZORPAY_KEY_SECRET') || '',
@@ -42,6 +41,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // 3. Authenticate User
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) throw new Error('No authorization header passed')
 
@@ -50,38 +50,38 @@ serve(async (req) => {
     )
     if (userError || !user) throw new Error('Unauthorized')
 
+    // 4. Parse Request
     const { action, plan = 'pro_monthly', payment_id, order_id, signature } = await req.json()
-
     const selectedPlan = PLANS[plan as keyof typeof PLANS];
     if (!selectedPlan) throw new Error('Invalid plan selection');
 
-    // ---------------------------------------------------------
-    // ACTION 1: CREATE ORDER
-    // ---------------------------------------------------------
+    // ==========================================
+    // ACTION: CREATE ORDER
+    // ==========================================
     if (action === 'create_order') {
       const options = {
-        amount: selectedPlan.amount * 100, 
-        currency: selectedPlan.currency,   
+        amount: selectedPlan.amount * 100, // Amount in paise
+        currency: selectedPlan.currency,
         receipt: `receipt_${user.id.slice(0, 8)}_${Date.now()}`,
         notes: { user_id: user.id, plan_id: plan }
       }
 
       const order = await razorpay.orders.create(options)
       return new Response(JSON.stringify(order), { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
       })
     }
 
-    // ---------------------------------------------------------
-    // ACTION 2: VERIFY PAYMENT & ADD CREDITS
-    // ---------------------------------------------------------
+    // ==========================================
+    // ACTION: VERIFY PAYMENT
+    // ==========================================
     if (action === 'verify_payment') {
-      // ✅ FIX 1: Guard against missing data
       if (!payment_id || !order_id || !signature) {
         throw new Error("Incomplete payment data");
       }
 
-      // Replay Protection
+      // Check for Replay Attack (Double counting)
       const { data: existingTx } = await supabaseAdmin
         .from('payment_transactions')
         .select('id')
@@ -106,14 +106,15 @@ serve(async (req) => {
 
       if (generated_signature !== signature) throw new Error("Invalid Signature")
 
-      // ✅ FIX 2: Use maybeSingle() for profile fetch
+      // Fetch User Profile
       const { data: profile } = await supabaseAdmin
         .from('profiles').select('credits').eq('id', user.id).maybeSingle();
 
       if (!profile) throw new Error("Profile not found");
 
+      // Add Credits & Subscribe
       const newCredits = (profile.credits || 0) + selectedPlan.credits;
-
+      
       const { error: updateError } = await supabaseAdmin.from('profiles').update({ 
           credits: newCredits, 
           is_subscribed: true,
@@ -122,6 +123,7 @@ serve(async (req) => {
 
       if (updateError) throw updateError;
 
+      // Record Transaction
       await supabaseAdmin.from('payment_transactions').insert({
         user_id: user.id,
         payment_id: payment_id,
@@ -143,6 +145,7 @@ serve(async (req) => {
     });
 
   } catch (error: any) {
+    console.error("Payment Error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
