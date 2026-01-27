@@ -7,12 +7,14 @@ import { useToast } from '@/hooks/use-toast';
 interface PricingModalProps {
   user: any;
   onClose: () => void;
+  initialMode?: 'subscription' | 'credits'; // Added this line
 }
 
-export default function PricingModal({ user, onClose }: PricingModalProps) {
- const [isIndia, setIsIndia] = useState(true);
-const [loading, setLoading] = useState(false);
-const [razorpayReady, setRazorpayReady] = useState(false); // 🔥 Add this
+export default function PricingModal({ user, onClose, initialMode = 'subscription' }: PricingModalProps) {
+  const [isIndia, setIsIndia] = useState(true);
+  const [mode, setMode] = useState<'subscription' | 'credits'>(initialMode); // Added this line
+  const [loading, setLoading] = useState(false);
+  const [razorpayReady, setRazorpayReady] = useState(false);
   const { toast } = useToast();
 
   // --- FIX: Load Razorpay Script on Mount ---
@@ -74,7 +76,12 @@ useEffect(() => {
     // ... rest of your code
     setLoading(true);
     try {
-      const plan = isIndia ? 'pro_monthly' : 'pro_monthly_usd';
+     let plan = '';
+      if (mode === 'subscription') {
+        plan = isIndia ? 'pro_monthly' : 'pro_monthly_usd';
+      } else {
+        plan = 'credit_topup_100';
+      }
 
       // 1. Invoke Edge Function
       const { data, error } = await supabase.functions.invoke('razorpay-payment', {
@@ -89,7 +96,9 @@ useEffect(() => {
         amount: data.amount,
         currency: data.currency,
         name: "Sasa AI",
-        description: isIndia ? "Pro Plan - India" : "Pro Plan - Global",
+       description: mode === 'subscription' 
+          ? (isIndia ? "Pro Plan - India" : "Pro Plan - Global") 
+          : "100 AI Credits Top-up",
         order_id: data.id,
         handler: async (response: any) => {
           // 3. Verify Payment
@@ -149,6 +158,21 @@ useEffect(() => {
           <h2 className="text-3xl font-black text-white mb-2 italic">UPGRADE TO PRO</h2>
           <p className="text-gray-400">Unlock 100 high-performance AI credits</p>
         </div>
+        {/* 💳 MODE TOGGLE (Subscription vs Top-up) */}
+        <div className="flex bg-gray-900/50 p-1 rounded-2xl mb-4 border border-gray-800/50">
+          <button 
+            onClick={() => setMode('subscription')}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${mode === 'subscription' ? 'bg-gray-800 text-white border border-gray-700' : 'text-gray-500'}`}
+          >
+            Monthly Subscription
+          </button>
+          <button 
+            onClick={() => setMode('credits')}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${mode === 'credits' ? 'bg-gray-800 text-white border border-gray-700' : 'text-gray-500'}`}
+          >
+            One-time Top-up
+          </button>
+        </div>
 
         {/* 🌎 LOCATION TOGGLE */}
         <div className="flex bg-gray-900 p-1.5 rounded-2xl mb-8 border border-gray-800">
@@ -170,9 +194,13 @@ useEffect(() => {
         <div className="text-center mb-8 p-6 bg-gray-900/50 rounded-3xl border border-gray-800/50">
           <div className="flex items-baseline justify-center gap-1">
             <span className="text-5xl font-black text-white tracking-tighter">
-              {isIndia ? '₹399' : '$8'}
+              {mode === 'subscription' 
+                ? (isIndia ? '₹399' : '$8') 
+                : '₹100'}
             </span>
-            <span className="text-gray-500 font-medium">/month</span>
+            <span className="text-gray-500 font-medium">
+              {mode === 'subscription' ? '/month' : ' once'}
+            </span>
           </div>
           {!isIndia && (
             <div className="flex items-center justify-center gap-2 mt-3 text-blue-400 text-xs font-semibold">
@@ -183,12 +211,20 @@ useEffect(() => {
 
         {/* Features */}
         <ul className="space-y-4 mb-10">
-          {[
-            '100 AI Content Credits',
-            'Advanced Lead Magnet AI',
-            'Full Content Calendar Access',
-            'No Watermarks on Assets'
-          ].map((feat) => (
+          {(mode === 'subscription' 
+            ? [
+                '100 AI Content Credits',
+                'Advanced Lead Magnet AI',
+                'Full Content Calendar Access',
+                'No Watermarks on Assets'
+              ]
+            : [
+                '100 Instant AI Credits',
+                'One-time Purchase',
+                'Credits Never Expire',
+                'Instant Account Top-up'
+              ]
+          ).map((feat) => (
             <li key={feat} className="flex items-center gap-3 text-sm font-medium text-gray-300">
               <div className="bg-green-500/20 p-1 rounded-full">
                 <Check size={14} className="text-green-500" />
