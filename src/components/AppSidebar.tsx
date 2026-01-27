@@ -50,6 +50,8 @@ export function AppSidebar() {
 
   // 👑 CHECK IF ADMIN
   const isAdmin = userRole === 'admin' || user?.email === 'info@aiforfuture.tech';
+  // 🔍 CHECK PLAN STATUS (Added this to fix the logic)
+  const isProPlan = (user as any)?.plan === 'pro_monthly' || (user as any)?.plan === 'pro_monthly_usd';
 
   // 🕒 Calculate Trial Time Remaining
   useEffect(() => {
@@ -177,28 +179,24 @@ export function AppSidebar() {
                  <span className={`text-sm font-bold ${
                    isAdmin ? 'text-white' : isExpired ? 'text-red-400' : 'text-green-400'
                  }`}>
-                   {isAdmin ? 'Super Admin' : isExpired ? 'Expired' : 'PRO MEMBER'}
+                   {/* LOGIC: Admin -> Super Admin | Expired -> Expired | Pro -> PRO MEMBER | Else -> Free Trial */}
+                   {isAdmin 
+                     ? 'Super Admin' 
+                     : isExpired 
+                       ? 'Expired' 
+                       : isProPlan ? 'PRO MEMBER' : 'Free Trial'
+                   }
                  </span>
                  
-                {!isAdmin && (
-                  daysLeft > 0 ? (
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      isExpired ? 'bg-red-500 text-white' : 'bg-green-400/10 text-green-400'
-                    }`}>
-                      {daysLeft} Days
+                 {/* SMALL WIDGET LOGIC: Only show for Trial Users (Not Admin, Not Expired, Not Pro) */}
+                 {!isAdmin && !isExpired && !isProPlan && (
+                    <span className="text-xs px-2 py-1 rounded-full bg-green-400/10 text-green-400">
+                      {daysLeft > 0 ? `${daysLeft} Days` : 'Trial Ended'}
                     </span>
-                  ) : (
-                    <button
-                      onClick={() => setShowPricing(true)}
-                      className="text-xs px-2 py-1 rounded-full bg-green-400/10 text-green-400 hover:bg-green-400/20 cursor-pointer font-medium transition-colors border border-green-400/20"
-                    >
-                      Upgrade
-                    </button>
-                  )
-                )}
+                 )}
                </div>
 
-               {/* 👇 3. CREDITS COUNTER 👇 */}
+               {/* 👇 3. CREDITS COUNTER (Hidden for Admin) 👇 */}
                {!isAdmin && (
                  <div className="mt-3 pt-3 border-t border-gray-700/50">
                    <div className="flex items-center justify-between text-xs mb-1.5">
@@ -223,12 +221,16 @@ export function AppSidebar() {
             </div>
           )}
 
-          {/* ACTION BUTTON */}
+          {/* ACTION BUTTON (Hidden for Admin) */}
           {!isAdmin && (
             <Button 
               onClick={() => {
-                // Determine mode: If expired -> Subscription. If Active -> Credits.
-                setPricingMode(isExpired ? 'subscription' : 'credits');
+                // Logic: If PRO -> Open Credits. If TRIAL or EXPIRED -> Open Subscription.
+                if (isProPlan && !isExpired) {
+                  setPricingMode('credits');
+                } else {
+                  setPricingMode('subscription');
+                }
                 setShowPricing(true);
               }}
               className={`w-full text-white border-0 shadow-lg ${
@@ -238,7 +240,13 @@ export function AppSidebar() {
               }`}
             >
               <Sparkles className="h-4 w-4 mr-2" />
-              {isExpired ? 'Reactivate Now' : 'Add Credits'}
+              {/* BUTTON TEXT LOGIC */}
+              {isExpired 
+                ? 'Reactivate Now' 
+                : isProPlan 
+                  ? 'Add Credits' 
+                  : 'Upgrade to Pro'
+              }
             </Button>
           )}
 
@@ -261,15 +269,3 @@ export function AppSidebar() {
             Sign Out
           </Button>
         </SidebarFooter>
-      </Sidebar>
-
-      {showPricing && (
-        <PricingModal 
-          user={user} 
-          initialMode={pricingMode}
-          onClose={() => !isExpired && setShowPricing(false)} 
-        />
-      )}
-    </>
-  );
-}
