@@ -14,12 +14,20 @@ const PLANS = {
   'pro_monthly': {
     amount: 399,
     currency: 'INR',
-    credits: 100
+    credits: 100,
+    type: 'subscription' // 👈 New field
+  },
+  'credit_topup_100': {      // 👈 New Plan
+    amount: 100,
+    currency: 'INR',
+    credits: 100,
+    type: 'one_time'     // 👈 One-time purchase
   },
   'pro_monthly_usd': {
     amount: 8,
     currency: 'USD',
-    credits: 100
+    credits: 100,
+    type: 'subscription'
   }
 }
 
@@ -113,13 +121,26 @@ serve(async (req) => {
       if (!profile) throw new Error("Profile not found");
 
       // Add Credits & Subscribe
-      const newCredits = (profile.credits || 0) + selectedPlan.credits;
-      
-      const { error: updateError } = await supabaseAdmin.from('profiles').update({ 
-          credits: newCredits, 
-          is_subscribed: true,
-          subscription_expiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-        }).eq('id', user.id)
+// ✅ LOGIC UPDATE: Calculate Expiry based on Plan Type
+      const updates: any = {
+        credits: (profile.credits || 0) + selectedPlan.credits,
+        is_subscribed: true
+      };
+
+      // Only extend date if it is a SUBSCRIPTION type
+      // @ts-ignore
+      if (selectedPlan.type === 'subscription') {
+        const currentExpiry = profile.subscription_expiry ? new Date(profile.subscription_expiry) : new Date();
+        const now = new Date();
+        // If already active, add 30 days to the FUTURE expiry. If expired, add 30 days to NOW.
+        const basisDate = currentExpiry > now ? currentExpiry : now;
+        const newExpiry = new Date(basisDate.getTime() + 30 * 24 * 60 * 60 * 1000); 
+        updates.subscription_expiry = newExpiry.toISOString();
+      }
+
+      const { error: updateError } = await supabaseAdmin.from('profiles')
+        .update(updates)
+        .eq('id', user.id);
 
       if (updateError) throw updateError;
 
@@ -133,7 +154,7 @@ serve(async (req) => {
         status: 'success'
       });
 
-      return new Response(JSON.stringify({ success: true, balance: newCredits }), { 
+      return new Response(JSON.stringify({ success: true, balance: updates.credits }), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200 
       })
