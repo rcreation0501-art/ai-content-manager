@@ -42,9 +42,9 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { tenant, user, userRole, loading, signOut } = useAuth();
-   
+    
   const [showPricing, setShowPricing] = useState(false);
-  const [pricingMode, setPricingMode] = useState<'subscription' | 'credits'>('subscription'); // Added this
+  const [pricingMode, setPricingMode] = useState<'subscription' | 'credits'>('subscription'); 
   const [daysLeft, setDaysLeft] = useState<number>(0);
   const [isExpired, setIsExpired] = useState(false);
 
@@ -175,10 +175,10 @@ export function AppSidebar() {
                {/* 2. Status Text & Days Left */}
                <div className="flex items-center justify-between">
                  <span className={`text-sm font-bold ${
-                    isAdmin ? 'text-white' : isExpired ? 'text-red-400' : 'text-green-400'
-                  }`}>
-                    {isAdmin ? 'Super Admin' : isExpired ? 'Expired' : 'PRO MEMBER'}
-                  </span>
+                   isAdmin ? 'text-white' : isExpired ? 'text-red-400' : 'text-green-400'
+                 }`}>
+                   {isAdmin ? 'Super Admin' : isExpired ? 'Expired' : 'PRO MEMBER'}
+                 </span>
                  
                 {!isAdmin && (
                   daysLeft > 0 ? (
@@ -198,7 +198,7 @@ export function AppSidebar() {
                 )}
                </div>
 
-               {/* 👇 3. NEW: CREDITS COUNTER (Inserted Here) 👇 */}
+               {/* 👇 3. CREDITS COUNTER 👇 */}
                {!isAdmin && (
                  <div className="mt-3 pt-3 border-t border-gray-700/50">
                    <div className="flex items-center justify-between text-xs mb-1.5">
@@ -219,12 +219,11 @@ export function AppSidebar() {
                    </div>
                  </div>
                )}
-               {/* 👆 END NEW CODE 👆 */}
 
             </div>
           )}
 
-        {/* ACTION BUTTON */}
+          {/* ACTION BUTTON */}
           {!isAdmin && (
             <Button 
               onClick={() => {
@@ -272,4 +271,5 @@ export function AppSidebar() {
         />
       )}
     </>
-  )
+  );
+}
