@@ -179,13 +179,22 @@ export function AppSidebar() {
                    {isAdmin ? 'Super Admin' : isExpired ? 'Expired' : 'Free Trial'}
                  </span>
                  
-                 {!isAdmin && (
-                   <span className={`text-xs px-2 py-1 rounded-full ${
-                     isExpired ? 'bg-red-500 text-white' : 'bg-green-400/10 text-green-400'
-                   }`}>
-                     {daysLeft > 0 ? `${daysLeft} Days` : 'Upgrade'}
-                   </span>
-                 )}
+                {!isAdmin && (
+                  daysLeft > 0 ? (
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      isExpired ? 'bg-red-500 text-white' : 'bg-green-400/10 text-green-400'
+                    }`}>
+                      {daysLeft} Days
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => setShowPricing(true)}
+                      className="text-xs px-2 py-1 rounded-full bg-green-400/10 text-green-400 hover:bg-green-400/20 cursor-pointer font-medium transition-colors border border-green-400/20"
+                    >
+                      Upgrade
+                    </button>
+                  )
+                )}
                </div>
 
                {/* 👇 3. NEW: CREDITS COUNTER (Inserted Here) 👇 */}
