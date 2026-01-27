@@ -44,6 +44,7 @@ export function AppSidebar() {
   const { tenant, user, userRole, loading, signOut } = useAuth();
    
   const [showPricing, setShowPricing] = useState(false);
+  const [pricingMode, setPricingMode] = useState<'subscription' | 'credits'>('subscription'); // Added this
   const [daysLeft, setDaysLeft] = useState<number>(0);
   const [isExpired, setIsExpired] = useState(false);
 
@@ -174,10 +175,10 @@ export function AppSidebar() {
                {/* 2. Status Text & Days Left */}
                <div className="flex items-center justify-between">
                  <span className={`text-sm font-bold ${
-                   isAdmin ? 'text-white' : isExpired ? 'text-red-400' : 'text-white'
-                 }`}>
-                   {isAdmin ? 'Super Admin' : isExpired ? 'Expired' : 'Free Trial'}
-                 </span>
+                    isAdmin ? 'text-white' : isExpired ? 'text-red-400' : 'text-green-400'
+                  }`}>
+                    {isAdmin ? 'Super Admin' : isExpired ? 'Expired' : 'PRO MEMBER'}
+                  </span>
                  
                 {!isAdmin && (
                   daysLeft > 0 ? (
@@ -223,10 +224,14 @@ export function AppSidebar() {
             </div>
           )}
 
-          {/* UPGRADE BUTTON */}
+        {/* ACTION BUTTON */}
           {!isAdmin && (
             <Button 
-              onClick={() => setShowPricing(true)}
+              onClick={() => {
+                // Determine mode: If expired -> Subscription. If Active -> Credits.
+                setPricingMode(isExpired ? 'subscription' : 'credits');
+                setShowPricing(true);
+              }}
               className={`w-full text-white border-0 shadow-lg ${
                 isExpired 
                   ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
@@ -234,7 +239,7 @@ export function AppSidebar() {
               }`}
             >
               <Sparkles className="h-4 w-4 mr-2" />
-              {isExpired ? 'Reactivate Now' : 'Upgrade to Pro'}
+              {isExpired ? 'Reactivate Now' : 'Add Credits'}
             </Button>
           )}
 
@@ -262,9 +267,9 @@ export function AppSidebar() {
       {showPricing && (
         <PricingModal 
           user={user} 
+          initialMode={pricingMode}
           onClose={() => !isExpired && setShowPricing(false)} 
         />
       )}
     </>
   );
-}
