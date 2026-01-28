@@ -269,3 +269,15 @@ export function AppSidebar() {
             Sign Out
           </Button>
         </SidebarFooter>
+      </Sidebar>
+
+      {showPricing && user && (
+        <PricingModal
+          user={user}
+          onClose={() => setShowPricing(false)}
+          initialMode={pricingMode}
+        />
+      )}
+    </>
+  );
+}
