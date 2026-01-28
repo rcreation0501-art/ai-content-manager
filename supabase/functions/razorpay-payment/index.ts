@@ -80,14 +80,30 @@ serve(async (req) => {
     const body = await req.json()
     console.log("📥 Incoming Request Body:", JSON.stringify(body));
 
-    const { action, mode, plan = 'pro_monthly', payment_id, order_id, signature, amount, currency } = body
+    const { action, mode, plan, payment_id, order_id, signature, amount, currency } = body
 
-    const selectedPlan = PLANS[plan as keyof typeof PLANS];
-    // Relaxed plan check for credits if amount/currency are provided
-    if (!selectedPlan && mode !== 'credits') {
-      console.error("❌ Invalid Plan:", plan);
-      throw new Error(`Invalid plan selection: ${plan}`);
+    // Normalize plan for credit top-ups
+    // ==========================================
+    // 1. STRICT PLAN SELECTION LOGIC
+    // ==========================================
+    let effectivePlanKey = plan;
+
+    // Force Credit Plan if mode is 'credits', ignoring any subscription plan sent by mistake
+    if (mode === 'credits') {
+      effectivePlanKey = (currency === 'USD') ? 'credit_topup_global' : 'credit_topup_100';
     }
+    // Default to Subscription if missing
+    else if (!effectivePlanKey) {
+      effectivePlanKey = (currency === 'USD') ? 'pro_monthly_usd' : 'pro_monthly';
+    }
+
+    const selectedPlan = PLANS[effectivePlanKey as keyof typeof PLANS];
+
+    if (!selectedPlan) {
+      console.error("❌ Invalid Plan:", effectivePlanKey);
+      throw new Error(`Invalid plan selection: ${effectivePlanKey}`);
+    }
+
 
     // ==========================================
     // ACTION: CREATE ORDER
@@ -97,8 +113,8 @@ serve(async (req) => {
         if (mode === 'credits' || plan?.startsWith('credit_topup')) {
           // --- CREDIT TOP-UP BRANCH ---
           const targetPlan = selectedPlan || PLANS['credit_topup_100'];
-          const finalAmount = amount || targetPlan.amount;
-          const finalCurrency = currency || targetPlan.currency;
+          const finalAmount = Number(targetPlan.amount);
+          const finalCurrency = targetPlan.currency;
 
           const options = {
             amount: Math.round(finalAmount * 100), // Ensure smallest unit (paise/cents)
@@ -178,7 +194,7 @@ serve(async (req) => {
 
       // Fetch User Profile
       const { data: profile } = await supabaseAdmin
-        .from('profiles').select('credits').eq('id', user.id).maybeSingle();
+        .from('profiles').select('credits, subscription_expiry').eq('id', user.id).maybeSingle();
 
       if (!profile) throw new Error("Profile not found");
 
