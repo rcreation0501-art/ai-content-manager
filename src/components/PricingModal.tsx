@@ -191,7 +191,7 @@ export default function PricingModal({ user, onClose, initialMode = 'subscriptio
             onClick={() => setMode('credits')}
             className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${mode === 'credits' ? 'bg-gray-800 text-white border border-gray-700' : 'text-gray-500'}`}
           >
-            One-time Top-up
+            Credit Top-Up
           </button>
         </div>
 
@@ -217,10 +217,10 @@ export default function PricingModal({ user, onClose, initialMode = 'subscriptio
             <span className="text-5xl font-black text-white tracking-tighter">
               {mode === 'subscription'
                 ? (isIndia ? '₹399' : '$8')
-                : '₹100'}
+                : (isIndia ? '₹100' : '$2')}
             </span>
             <span className="text-gray-500 font-medium">
-              {mode === 'subscription' ? '/month' : ' once'}
+              {mode === 'subscription' ? '/month' : ''}
             </span>
           </div>
           {!isIndia && (
