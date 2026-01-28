@@ -4,9 +4,9 @@ import Razorpay from "npm:razorpay@2.9.2"
 import { crypto } from "https://deno.land/std@0.177.0/crypto/mod.ts";
 
 const corsHeaders = {
-  "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "access-control-allow-headers": "content-type, authorization, x-client-info, apikey",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 }
 
 const PLANS = {
@@ -37,221 +37,122 @@ const PLANS = {
 }
 
 Deno.serve(async (req) => {
-  // 1. Handle CORS
+  // 1. Handle CORS (Preflight)
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // 2. Setup Razorpay & Supabase
+    // 2. Setup Clients
     const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID');
     const razorpayKeySecret = Deno.env.get('RAZORPAY_KEY_SECRET');
-
-    if (!razorpayKeyId || !razorpayKeySecret) {
-      console.error("❌ MISSING RAZORPAY KEYS");
-      throw new Error("Server Misconfiguration: Missing Razorpay Keys");
-    }
-
-    const razorpay = new Razorpay({
-      key_id: razorpayKeyId,
-      key_secret: razorpayKeySecret,
-    })
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error("Server Misconfiguration: Missing Supabase Keys");
+    if (!razorpayKeyId || !razorpayKeySecret || !supabaseUrl || !supabaseKey) {
+      console.error("❌ Environment Variables Missing");
+      throw new Error("Server Misconfiguration: Key missing");
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseKey)
+    const razorpay = new Razorpay({ key_id: razorpayKeyId, key_secret: razorpayKeySecret });
+    const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
-    // 3. Authenticate User
-    const authHeader = req.headers.get('authorization')
-    console.log("🔑 Auth Header Present:", !!authHeader);
+    // 3. Auth
+    const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
+    console.log("🔑 Auth Check:", !!authHeader ? "Present" : "Missing");
 
     if (!authHeader?.startsWith('Bearer ')) {
-      console.error("❌ Invalid or missing Bearer token");
-      throw new Error('Invalid Authorization header');
+      throw new Error('Missing or invalid Authorization header');
     }
 
     const token = authHeader.split(' ')[1];
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
+    if (userError || !user) throw new Error('Unauthorized user access');
 
-    if (userError || !user) {
-      console.error("❌ Auth User Error:", userError);
-      throw new Error('Unauthorized');
-    }
-
-    // 4. Parse Request Body
-    let body;
-    try {
-      body = await req.json();
-      console.log("📥 Incoming Request Body:", JSON.stringify(body));
-    } catch (e) {
-      console.error("❌ Failed to parse request JSON:", e);
-      throw new Error("Invalid JSON body");
-    }
-
-    if (!body || !body.action) {
-      throw new Error("Missing 'action' in request body");
-    }
+    // 4. Input Parsing
+    const body = await req.json();
+    console.log("📥 Payload:", JSON.stringify(body));
 
     const { action, mode, plan, payment_id, order_id, signature, currency } = body;
+    // Leniency check for action name (support space or underscore)
+    const normalizedAction = String(action || "").trim().replace(' ', '_');
 
-    // ==========================================
-    // 1. STRICT PLAN SELECTION LOGIC
-    // ==========================================
+    // 5. Plan Selection
     let effectivePlanKey = plan;
-
-    // Force Credit Plan if mode is 'credits'
     if (mode === 'credits') {
       effectivePlanKey = (currency === 'USD') ? 'credit_topup_global' : 'credit_topup_100';
-    }
-    // Default to Subscription if missing or invalid
-    else if (!effectivePlanKey || !PLANS[effectivePlanKey as keyof typeof PLANS]) {
+    } else if (!effectivePlanKey || !PLANS[effectivePlanKey as keyof typeof PLANS]) {
       effectivePlanKey = (currency === 'USD') ? 'pro_monthly_usd' : 'pro_monthly';
     }
 
     const selectedPlan = PLANS[effectivePlanKey as keyof typeof PLANS];
+    if (!selectedPlan) throw new Error(`Invalid plan: ${effectivePlanKey}`);
 
-    if (!selectedPlan) {
-      console.error("❌ Invalid Plan after normalization:", effectivePlanKey);
-      throw new Error(`Invalid plan selection: ${effectivePlanKey}`);
-    }
+    console.log("🎯 Targeting:", effectivePlanKey);
 
-    console.log("🎯 Selected Plan:", effectivePlanKey, JSON.stringify(selectedPlan));
-
-    // ==========================================
-    // ACTION: CREATE ORDER
-    // ==========================================
-    if (action === 'create_order') {
+    // --- Action: Create Order ---
+    if (normalizedAction === 'create_order') {
       try {
-        const isOneTime = mode === 'credits' || (effectivePlanKey && String(effectivePlanKey).startsWith('credit_topup'));
-
+        const isOneTime = mode === 'credits' || effectivePlanKey.startsWith('credit_topup');
         const options = {
           amount: Math.round(selectedPlan.amount * 100),
           currency: selectedPlan.currency,
-          receipt: isOneTime
-            ? `rcpt_credits_${user.id.slice(0, 8)}_${Date.now()}`
-            : `rcpt_sub_${user.id.slice(0, 8)}_${Date.now()}`,
-          notes: {
-            type: isOneTime ? "credit_topup" : "subscription",
-            userId: user.id,
-            plan_id: effectivePlanKey
-          }
-        }
+          receipt: `rcpt_${isOneTime ? 'c' : 's'}_${user.id.slice(0, 8)}_${Date.now()}`,
+          notes: { type: isOneTime ? "credit_topup" : "subscription", userId: user.id, plan_id: effectivePlanKey }
+        };
 
-        console.log("🔧 Creating Razorpay Order with options:", JSON.stringify(options));
-        const order = await razorpay.orders.create(options)
-
+        const order = await razorpay.orders.create(options);
         return new Response(JSON.stringify(order), {
-          headers: { ...corsHeaders, 'content-type': 'application/json' },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 200
-        })
-      } catch (rzpError: any) {
-        console.error("❌ Razorpay Order API Error:", rzpError);
-        return new Response(JSON.stringify({
-          error: "Razorpay Order Creation Failed",
-          details: rzpError.description || rzpError.message || rzpError
-        }), {
-          status: 500,
-          headers: { ...corsHeaders, 'content-type': 'application/json' }
-        })
+        });
+      } catch (e: any) {
+        console.error("❌ Razorpay Order Fail:", e);
+        throw new Error(`Order Failed: ${e.description || e.message}`);
       }
     }
 
-    // ==========================================
-    // ACTION: VERIFY PAYMENT
-    // ==========================================
-    if (action === 'verify_payment') {
-      if (!payment_id || !order_id || !signature) {
-        throw new Error("Incomplete payment data");
-      }
+    // --- Action: Verify Payment ---
+    if (normalizedAction === 'verify_payment') {
+      if (!payment_id || !order_id || !signature) throw new Error("Incomplete verification data");
 
-      // 1. Check for Replay Attack
-      const { data: existingTx } = await supabaseAdmin
-        .from('payment_transactions')
-        .select('id')
-        .eq('payment_id', payment_id)
-        .maybeSingle();
+      const { data: existingTx } = await supabaseAdmin.from('payment_transactions').select('id').eq('payment_id', payment_id).maybeSingle();
+      if (existingTx) throw new Error("Duplicate payment attempt");
 
-      if (existingTx) throw new Error("Payment already processed");
+      // Sign Verification
+      const text = order_id + "|" + payment_id;
+      const encoder = new TextEncoder();
+      const cryptoKey = await crypto.subtle.importKey("raw", encoder.encode(razorpayKeySecret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+      const signatureBuffer = await crypto.subtle.sign("HMAC", cryptoKey, encoder.encode(text));
+      const generated = Array.from(new Uint8Array(signatureBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-      // 2. Verify Signature
-      const text = order_id + "|" + payment_id
-      const secret = razorpayKeySecret
-      const encoder = new TextEncoder()
-      const keyData = encoder.encode(secret)
-      const msgData = encoder.encode(text)
+      if (generated !== signature) throw new Error("Signature Mismatch");
 
-      const cryptoKey = await crypto.subtle.importKey(
-        "raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
-      )
-      const signatureBuffer = await crypto.subtle.sign("HMAC", cryptoKey, msgData)
-      const generated_signature = Array.from(new Uint8Array(signatureBuffer))
-        .map(b => b.toString(16).padStart(2, '0')).join('')
+      const { data: profile } = await supabaseAdmin.from('profiles').select('credits, subscription_expiry').eq('id', user.id).maybeSingle();
+      if (!profile) throw new Error("Profile Missing");
 
-      if (generated_signature !== signature) throw new Error("Invalid Signature")
-
-      // 3. Fetch User Profile
-      const { data: profile } = await supabaseAdmin
-        .from('profiles')
-        .select('credits, subscription_expiry')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (!profile) throw new Error("Profile not found");
-
-      // 4. Apply Credits & Subscription
-      const updates: any = {
-        credits: (profile.credits || 0) + selectedPlan.credits,
-        is_subscribed: true
-      };
-
+      const updates: any = { credits: (profile.credits || 0) + selectedPlan.credits, is_subscribed: true };
       if (selectedPlan.type === 'subscription') {
-        const currentExpiry = profile.subscription_expiry ? new Date(profile.subscription_expiry) : new Date();
-        const now = new Date();
-        const basisDate = currentExpiry > now ? currentExpiry : now;
-        const newExpiry = new Date(basisDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-        updates.subscription_expiry = newExpiry.toISOString();
+        const basis = (profile.subscription_expiry && new Date(profile.subscription_expiry) > new Date()) ? new Date(profile.subscription_expiry) : new Date();
+        updates.subscription_expiry = new Date(basis.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
       }
 
-      const { error: updateError } = await supabaseAdmin.from('profiles')
-        .update(updates)
-        .eq('id', user.id);
-
-      if (updateError) throw updateError;
-
-      // 5. Record Transaction
-      await supabaseAdmin.from('payment_transactions').insert({
-        user_id: user.id,
-        payment_id: payment_id,
-        order_id: order_id,
-        amount: selectedPlan.amount,
-        currency: selectedPlan.currency,
-        status: 'success'
-      });
+      await supabaseAdmin.from('profiles').update(updates).eq('id', user.id);
+      await supabaseAdmin.from('payment_transactions').insert({ user_id: user.id, payment_id, order_id, amount: selectedPlan.amount, currency: selectedPlan.currency, status: 'success' });
 
       return new Response(JSON.stringify({ success: true, balance: updates.credits }), {
-        headers: { ...corsHeaders, 'content-type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200
-      })
+      });
     }
 
-    return new Response(JSON.stringify({ error: 'Invalid action' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'content-type': 'application/json' }
-    });
+    throw new Error(`Unknown action: ${normalizedAction}`);
 
   } catch (error: any) {
     console.error("💥 Function Error:", error.message);
-    return new Response(JSON.stringify({
-      error: error.message,
-      stack: error.stack
-    }), {
+    return new Response(JSON.stringify({ error: error.message, status: "error" }), {
       status: 400,
-      headers: { ...corsHeaders, 'content-type': 'application/json' }
-    })
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
-})
+});
