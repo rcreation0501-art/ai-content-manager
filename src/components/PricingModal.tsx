@@ -87,11 +87,19 @@ export default function PricingModal({ user, onClose, initialMode = 'subscriptio
         payload.currency = isIndia ? 'INR' : 'USD';
       }
 
-      // 1. Invoke Edge Function
+      // 1. Get auth session and invoke Edge Function
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("You must be logged in to make a payment");
+      }
+
       console.log("🚀 Invoking Edge Function with payload:", JSON.stringify(payload));
 
       const { data, error } = await supabase.functions.invoke('razorpay-payment', {
-        body: payload
+        body: payload,
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
       });
 
       if (error) {
@@ -133,7 +141,10 @@ export default function PricingModal({ user, onClose, initialMode = 'subscriptio
           }
 
           const { error: verifyError } = await supabase.functions.invoke('razorpay-payment', {
-            body: verifyPayload
+            body: verifyPayload,
+            headers: {
+              Authorization: `Bearer ${session.access_token}`
+            }
           });
 
           if (verifyError) {
