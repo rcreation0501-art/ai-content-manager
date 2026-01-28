@@ -78,22 +78,28 @@ serve(async (req) => {
 
     // 4. Parse Request
     const body = await req.json()
-    const { action, mode, plan = 'pro_monthly', payment_id, order_id, signature, amount, currency } = body
+    const { action, mode, plan, payment_id, order_id, signature, amount, currency } = body
 
    // Normalize plan for credit top-ups
-let effectivePlanKey = plan;
+// ==========================================
+    // 1. STRICT PLAN SELECTION LOGIC
+    // ==========================================
+    let effectivePlanKey = plan;
+    
+    // Force Credit Plan if mode is 'credits', ignoring any subscription plan sent by mistake
+    if (mode === 'credits') {
+       effectivePlanKey = (currency === 'USD') ? 'credit_topup_global' : 'credit_topup_100';
+    } 
+    // Default to Subscription if missing
+    else if (!effectivePlanKey) {
+       effectivePlanKey = (currency === 'USD') ? 'pro_monthly_usd' : 'pro_monthly';
+    }
 
-if ((mode === 'credits' || plan?.startsWith('credit_topup')) && !effectivePlanKey) {
-  effectivePlanKey = currency === 'USD'
-    ? 'credit_topup_global'
-    : 'credit_topup_100';
-}
+    const selectedPlan = PLANS[effectivePlanKey as keyof typeof PLANS];
 
-const selectedPlan = PLANS[effectivePlanKey as keyof typeof PLANS];
-
-if (!selectedPlan) {
-  throw new Error('Invalid plan selection');
-}
+    if (!selectedPlan) {
+      console.warn(`Unknown plan '${effectivePlanKey}', defaulting to pro_monthly`);
+    }
 
 
     // ==========================================
