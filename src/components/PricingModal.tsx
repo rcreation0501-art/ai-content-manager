@@ -76,16 +76,13 @@ export default function PricingModal({ user, onClose, initialMode = 'subscriptio
     // ... rest of your code
     setLoading(true);
     try {
-      let plan = '';
-      if (mode === 'subscription') {
-        plan = isIndia ? 'pro_monthly' : 'pro_monthly_usd';
-      } else {
-        plan = 'credit_topup_100';
-      }
+      let plan = mode === 'subscription'
+        ? (isIndia ? 'pro_monthly' : 'pro_monthly_usd')
+        : (isIndia ? 'credit_topup_100' : 'credit_topup_global');
 
       // 1. Invoke Edge Function
       const { data, error } = await supabase.functions.invoke('razorpay-payment', {
-        body: { action: 'create_order', plan }
+        body: { action: 'create_order', plan, mode }
       });
 
       if (error) throw error;
@@ -140,16 +137,21 @@ export default function PricingModal({ user, onClose, initialMode = 'subscriptio
       console.error("❌ Payment Start Error:", err);
 
       // Try to extract the actual error message from the Edge Function response if it exists
+      // Try to extract the actual error message from the Edge Function response
       let errorMessage = "Could not reach the payment server. Please refresh and try again.";
 
-      // If the error object has a 'message' property (standard Error or custom JSON)
       if (err.message) {
-        // If it's a stringified JSON error from our Edge Function
+        errorMessage = err.message;
+      }
+
+      // Handle Supabase-specific error responses
+      if (err.context && typeof err.context.json === 'function') {
         try {
-          // sometimes the error message itself is acceptable
-          errorMessage = err.message;
+          const details = await err.context.json();
+          if (details.error) errorMessage = details.error;
+          if (details.details) errorMessage += `: ${details.details}`;
         } catch (e) {
-          errorMessage = err.message;
+          // fallback to message
         }
       }
 

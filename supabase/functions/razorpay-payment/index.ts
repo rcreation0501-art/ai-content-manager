@@ -78,12 +78,15 @@ serve(async (req) => {
 
     // 4. Parse Request
     const body = await req.json()
+    console.log("📥 Incoming Request Body:", JSON.stringify(body));
+
     const { action, mode, plan = 'pro_monthly', payment_id, order_id, signature, amount, currency } = body
 
     const selectedPlan = PLANS[plan as keyof typeof PLANS];
     // Relaxed plan check for credits if amount/currency are provided
     if (!selectedPlan && mode !== 'credits') {
-      throw new Error('Invalid plan selection');
+      console.error("❌ Invalid Plan:", plan);
+      throw new Error(`Invalid plan selection: ${plan}`);
     }
 
     // ==========================================
