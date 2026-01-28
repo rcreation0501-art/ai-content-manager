@@ -17,11 +17,17 @@ const PLANS = {
     credits: 100,
     type: 'subscription' // 👈 New field
   },
-  'credit_topup_100': {      // 👈 New Plan
+  'credit_topup_100': {
     amount: 100,
     currency: 'INR',
     credits: 100,
-    type: 'one_time'     // 👈 One-time purchase
+    type: 'one_time'
+  },
+  'credit_topup_global': {   // 👈 Global credits
+    amount: 2,
+    currency: 'USD',
+    credits: 100,
+    type: 'one_time'
   },
   'pro_monthly_usd': {
     amount: 8,
@@ -71,26 +77,67 @@ serve(async (req) => {
     if (userError || !user) throw new Error('Unauthorized')
 
     // 4. Parse Request
-    const { action, plan = 'pro_monthly', payment_id, order_id, signature } = await req.json()
+    const body = await req.json()
+    const { action, mode, plan = 'pro_monthly', payment_id, order_id, signature, amount, currency } = body
+
     const selectedPlan = PLANS[plan as keyof typeof PLANS];
-    if (!selectedPlan) throw new Error('Invalid plan selection');
+    // Relaxed plan check for credits if amount/currency are provided
+    if (!selectedPlan && mode !== 'credits') {
+      throw new Error('Invalid plan selection');
+    }
 
     // ==========================================
     // ACTION: CREATE ORDER
     // ==========================================
     if (action === 'create_order') {
-      const options = {
-        amount: selectedPlan.amount * 100, // Amount in paise
-        currency: selectedPlan.currency,
-        receipt: `receipt_${user.id.slice(0, 8)}_${Date.now()}`,
-        notes: { user_id: user.id, plan_id: plan }
-      }
+      try {
+        if (mode === 'credits' || plan?.startsWith('credit_topup')) {
+          // --- CREDIT TOP-UP BRANCH ---
+          const targetPlan = selectedPlan || PLANS['credit_topup_100'];
+          const finalAmount = amount || targetPlan.amount;
+          const finalCurrency = currency || targetPlan.currency;
 
-      const order = await razorpay.orders.create(options)
-      return new Response(JSON.stringify(order), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200
-      })
+          const options = {
+            amount: Math.round(finalAmount * 100), // Ensure smallest unit (paise/cents)
+            currency: finalCurrency,
+            receipt: `rcpt_credits_${user.id.slice(0, 8)}_${Date.now()}`,
+            notes: {
+              type: "credit_topup",
+              userId: user.id,
+              plan_id: plan || 'custom'
+            }
+          }
+
+          const order = await razorpay.orders.create(options)
+          return new Response(JSON.stringify(order), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200
+          })
+        } else {
+          // --- SUBSCRIPTION BRANCH (Existing Logic) ---
+          const options = {
+            amount: selectedPlan.amount * 100,
+            currency: selectedPlan.currency,
+            receipt: `receipt_${user.id.slice(0, 8)}_${Date.now()}`,
+            notes: { user_id: user.id, plan_id: plan }
+          }
+
+          const order = await razorpay.orders.create(options)
+          return new Response(JSON.stringify(order), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200
+          })
+        }
+      } catch (rzpError: any) {
+        console.error("❌ Razorpay Order API Error:", rzpError);
+        return new Response(JSON.stringify({
+          error: "Razorpay Order Creation Failed",
+          details: rzpError.description || rzpError.message || rzpError
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
     }
 
     // ==========================================
