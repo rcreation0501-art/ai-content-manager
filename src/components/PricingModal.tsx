@@ -90,6 +90,12 @@ export default function PricingModal({ user, onClose, initialMode = 'subscriptio
 
       if (error) throw error;
 
+      console.log('📦 Order Data:', data);
+
+      if (!data || !data.id) {
+        throw new Error("Invalid order data received from server");
+      }
+
       // 2. Open Razorpay Checkout
       const options = {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID,
