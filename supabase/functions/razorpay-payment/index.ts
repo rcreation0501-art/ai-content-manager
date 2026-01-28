@@ -68,11 +68,13 @@ Deno.serve(async (req) => {
 
     // 3. Authenticate User
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) throw new Error('No authorization header passed')
+    if (!authHeader?.startsWith('Bearer ')) {
+      throw new Error('Invalid Authorization header')
+    }
+    const token = authHeader.split(' ')[1]
+    const { data: { user }, error: userError } =
+      await supabaseAdmin.auth.getUser(token)
 
-    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    )
     if (userError || !user) throw new Error('Unauthorized')
 
     // 4. Parse Request

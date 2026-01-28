@@ -76,13 +76,16 @@ export default function PricingModal({ user, onClose, initialMode = 'subscriptio
     // ... rest of your code
     setLoading(true);
     try {
-      let plan = mode === 'subscription'
-        ? (isIndia ? 'pro_monthly' : 'pro_monthly_usd')
-        : (isIndia ? 'credit_topup_100' : 'credit_topup_global');
+      const payload: any = { action: 'create_order', mode };
+      if (mode === 'subscription') {
+        payload.plan = isIndia ? 'pro_monthly' : 'pro_monthly_usd';
+      } else {
+        payload.currency = isIndia ? 'INR' : 'USD';
+      }
 
       // 1. Invoke Edge Function
       const { data, error } = await supabase.functions.invoke('razorpay-payment', {
-        body: { action: 'create_order', plan, mode }
+        body: payload
       });
 
       if (error) throw error;
