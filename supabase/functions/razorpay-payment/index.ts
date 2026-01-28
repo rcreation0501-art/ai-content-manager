@@ -57,25 +57,28 @@ Deno.serve(async (req) => {
     const razorpay = new Razorpay({ key_id: razorpayKeyId, key_secret: razorpayKeySecret });
     const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
 
-    // 3. Auth
+    // 3. Auth (Robust Check)
     const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
-    console.log("🔑 Auth Check:", !!authHeader ? "Present" : "Missing");
+    console.log("🔑 Auth Header:", authHeader ? "Present" : "Missing");
 
-    if (!authHeader?.startsWith('Bearer ')) {
+    if (!authHeader?.match(/^Bearer /i)) {
       throw new Error('Missing or invalid Authorization header');
     }
 
-    const token = authHeader.split(' ')[1];
+    const token = authHeader.split(/\s+/)[1];
+    if (!token) throw new Error('Bearer token is empty');
+
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
     if (userError || !user) throw new Error('Unauthorized user access');
 
     // 4. Input Parsing
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     console.log("📥 Payload:", JSON.stringify(body));
 
     const { action, mode, plan, payment_id, order_id, signature, currency } = body;
-    // Leniency check for action name (support space or underscore)
-    const normalizedAction = String(action || "").trim().replace(' ', '_');
+    if (!action) throw new Error("Missing 'action' in request body");
+
+    const normalizedAction = String(action).trim().replace(' ', '_');
 
     // 5. Plan Selection
     let effectivePlanKey = plan;
@@ -86,14 +89,14 @@ Deno.serve(async (req) => {
     }
 
     const selectedPlan = PLANS[effectivePlanKey as keyof typeof PLANS];
-    if (!selectedPlan) throw new Error(`Invalid plan: ${effectivePlanKey}`);
+    if (!selectedPlan) throw new Error(`Invalid plan selection: ${effectivePlanKey}`);
 
-    console.log("🎯 Targeting:", effectivePlanKey);
+    console.log("🎯 Targeting Plan:", effectivePlanKey);
 
     // --- Action: Create Order ---
     if (normalizedAction === 'create_order') {
       try {
-        const isOneTime = mode === 'credits' || effectivePlanKey.startsWith('credit_topup');
+        const isOneTime = mode === 'credits' || (effectivePlanKey && String(effectivePlanKey).startsWith('credit_topup'));
         const options = {
           amount: Math.round(selectedPlan.amount * 100),
           currency: selectedPlan.currency,
