@@ -68,6 +68,8 @@ Deno.serve(async (req) => {
 
     // 3. Authenticate User
     const authHeader = req.headers.get('Authorization')
+    console.log("🔑 Auth Header Present:", !!authHeader);
+
     if (!authHeader?.startsWith('Bearer ')) {
       throw new Error('Invalid Authorization header')
     }

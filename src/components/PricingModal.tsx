@@ -76,9 +76,13 @@ export default function PricingModal({ user, onClose, initialMode = 'subscriptio
     // ... rest of your code
     setLoading(true);
     try {
+      const currentPlan = mode === 'subscription'
+        ? (isIndia ? 'pro_monthly' : 'pro_monthly_usd')
+        : (isIndia ? 'credit_topup_100' : 'credit_topup_global');
+
       const payload: any = { action: 'create_order', mode };
       if (mode === 'subscription') {
-        payload.plan = isIndia ? 'pro_monthly' : 'pro_monthly_usd';
+        payload.plan = currentPlan;
       } else {
         payload.currency = isIndia ? 'INR' : 'USD';
       }
@@ -108,15 +112,23 @@ export default function PricingModal({ user, onClose, initialMode = 'subscriptio
         order_id: data.id,
         handler: async (response: any) => {
           // 3. Verify Payment
+          const verifyPayload: any = {
+            action: 'verify_payment',
+            payment_id: response.razorpay_payment_id,
+            order_id: response.razorpay_order_id,
+            signature: response.razorpay_signature,
+            user_id: user.id
+          };
+
+          if (mode === 'subscription') {
+            verifyPayload.plan = currentPlan;
+          } else {
+            verifyPayload.mode = mode;
+            verifyPayload.currency = isIndia ? 'INR' : 'USD';
+          }
+
           const { error: verifyError } = await supabase.functions.invoke('razorpay-payment', {
-            body: {
-              action: 'verify_payment',
-              plan,
-              payment_id: response.razorpay_payment_id,
-              order_id: response.razorpay_order_id,
-              signature: response.razorpay_signature,
-              user_id: user.id // 🔥 REQUIRED
-            }
+            body: verifyPayload
           });
 
           if (verifyError) {
