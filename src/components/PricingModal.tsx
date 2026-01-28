@@ -88,11 +88,16 @@ export default function PricingModal({ user, onClose, initialMode = 'subscriptio
       }
 
       // 1. Invoke Edge Function
+      console.log("🚀 Invoking Edge Function with payload:", JSON.stringify(payload));
+
       const { data, error } = await supabase.functions.invoke('razorpay-payment', {
         body: payload
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("❌ Edge Function Error:", error);
+        throw error;
+      }
 
       console.log('📦 Order Data:', data);
 

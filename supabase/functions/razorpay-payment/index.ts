@@ -4,9 +4,9 @@ import Razorpay from "npm:razorpay@2.9.2"
 import { crypto } from "https://deno.land/std@0.177.0/crypto/mod.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "access-control-allow-headers": "content-type, authorization, x-client-info, apikey",
 }
 
 const PLANS = {
@@ -67,23 +67,37 @@ Deno.serve(async (req) => {
     const supabaseAdmin = createClient(supabaseUrl, supabaseKey)
 
     // 3. Authenticate User
-    const authHeader = req.headers.get('Authorization')
+    const authHeader = req.headers.get('authorization')
     console.log("🔑 Auth Header Present:", !!authHeader);
 
     if (!authHeader?.startsWith('Bearer ')) {
-      throw new Error('Invalid Authorization header')
+      console.error("❌ Invalid or missing Bearer token");
+      throw new Error('Invalid Authorization header');
     }
-    const token = authHeader.split(' ')[1]
-    const { data: { user }, error: userError } =
-      await supabaseAdmin.auth.getUser(token)
 
-    if (userError || !user) throw new Error('Unauthorized')
+    const token = authHeader.split(' ')[1];
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
 
-    // 4. Parse Request
-    const body = await req.json()
-    console.log("📥 Incoming Request Body:", JSON.stringify(body));
+    if (userError || !user) {
+      console.error("❌ Auth User Error:", userError);
+      throw new Error('Unauthorized');
+    }
 
-    const { action, mode, plan, payment_id, order_id, signature, currency } = body
+    // 4. Parse Request Body
+    let body;
+    try {
+      body = await req.json();
+      console.log("📥 Incoming Request Body:", JSON.stringify(body));
+    } catch (e) {
+      console.error("❌ Failed to parse request JSON:", e);
+      throw new Error("Invalid JSON body");
+    }
+
+    if (!body || !body.action) {
+      throw new Error("Missing 'action' in request body");
+    }
+
+    const { action, mode, plan, payment_id, order_id, signature, currency } = body;
 
     // ==========================================
     // 1. STRICT PLAN SELECTION LOGIC
@@ -106,12 +120,14 @@ Deno.serve(async (req) => {
       throw new Error(`Invalid plan selection: ${effectivePlanKey}`);
     }
 
+    console.log("🎯 Selected Plan:", effectivePlanKey, JSON.stringify(selectedPlan));
+
     // ==========================================
     // ACTION: CREATE ORDER
     // ==========================================
     if (action === 'create_order') {
       try {
-        const isOneTime = mode === 'credits' || effectivePlanKey.startsWith('credit_topup');
+        const isOneTime = mode === 'credits' || (effectivePlanKey && String(effectivePlanKey).startsWith('credit_topup'));
 
         const options = {
           amount: Math.round(selectedPlan.amount * 100),
@@ -130,7 +146,7 @@ Deno.serve(async (req) => {
         const order = await razorpay.orders.create(options)
 
         return new Response(JSON.stringify(order), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, 'content-type': 'application/json' },
           status: 200
         })
       } catch (rzpError: any) {
@@ -140,7 +156,7 @@ Deno.serve(async (req) => {
           details: rzpError.description || rzpError.message || rzpError
         }), {
           status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'content-type': 'application/json' }
         })
       }
     }
@@ -218,24 +234,24 @@ Deno.serve(async (req) => {
       });
 
       return new Response(JSON.stringify({ success: true, balance: updates.credits }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'content-type': 'application/json' },
         status: 200
       })
     }
 
     return new Response(JSON.stringify({ error: 'Invalid action' }), {
       status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...corsHeaders, 'content-type': 'application/json' }
     });
 
   } catch (error: any) {
-    console.error("💥 Function Error:", error);
+    console.error("💥 Function Error:", error.message);
     return new Response(JSON.stringify({
       error: error.message,
       stack: error.stack
     }), {
       status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...corsHeaders, 'content-type': 'application/json' }
     })
   }
 })
