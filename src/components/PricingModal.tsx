@@ -18,7 +18,7 @@ export default function PricingModal({ user, onClose, initialMode = 'subscriptio
   const { toast } = useToast();
 
   // --- FIX: Load Razorpay Script on Mount ---
-useEffect(() => {
+  useEffect(() => {
     // 1. Check if Razorpay is already available (e.g., from a previous mount)
     if ((window as any).Razorpay) {
       setRazorpayReady(true);
@@ -76,7 +76,7 @@ useEffect(() => {
     // ... rest of your code
     setLoading(true);
     try {
-     let plan = '';
+      let plan = '';
       if (mode === 'subscription') {
         plan = isIndia ? 'pro_monthly' : 'pro_monthly_usd';
       } else {
@@ -96,14 +96,14 @@ useEffect(() => {
         amount: data.amount,
         currency: data.currency,
         name: "Sasa AI",
-       description: mode === 'subscription' 
-          ? (isIndia ? "Pro Plan - India" : "Pro Plan - Global") 
+        description: mode === 'subscription'
+          ? (isIndia ? "Pro Plan - India" : "Pro Plan - Global")
           : "100 AI Credits Top-up",
         order_id: data.id,
         handler: async (response: any) => {
           // 3. Verify Payment
           const { error: verifyError } = await supabase.functions.invoke('razorpay-payment', {
-            body: { 
+            body: {
               action: 'verify_payment',
               plan,
               payment_id: response.razorpay_payment_id,
@@ -123,19 +123,34 @@ useEffect(() => {
         },
         prefill: { email: user?.email },
         theme: { color: "#ef4444" },
-        modal: { 
-          ondismiss: () => setLoading(false) 
+        modal: {
+          ondismiss: () => setLoading(false)
         }
       };
 
       const rzp = new (window as any).Razorpay(options);
       rzp.open();
     } catch (err: any) {
-      console.error("Payment Start Error:", err);
-      toast({ 
-        title: "Connection Issue", 
-        description: "Could not reach the payment server. Please refresh and try again.", 
-        variant: "destructive" 
+      console.error("❌ Payment Start Error:", err);
+
+      // Try to extract the actual error message from the Edge Function response if it exists
+      let errorMessage = "Could not reach the payment server. Please refresh and try again.";
+
+      // If the error object has a 'message' property (standard Error or custom JSON)
+      if (err.message) {
+        // If it's a stringified JSON error from our Edge Function
+        try {
+          // sometimes the error message itself is acceptable
+          errorMessage = err.message;
+        } catch (e) {
+          errorMessage = err.message;
+        }
+      }
+
+      toast({
+        title: "Payment Initialization Failed",
+        description: errorMessage,
+        variant: "destructive"
       });
     } finally {
       setLoading(false);
@@ -160,13 +175,13 @@ useEffect(() => {
         </div>
         {/* 💳 MODE TOGGLE (Subscription vs Top-up) */}
         <div className="flex bg-gray-900/50 p-1 rounded-2xl mb-4 border border-gray-800/50">
-          <button 
+          <button
             onClick={() => setMode('subscription')}
             className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${mode === 'subscription' ? 'bg-gray-800 text-white border border-gray-700' : 'text-gray-500'}`}
           >
             Monthly Subscription
           </button>
-          <button 
+          <button
             onClick={() => setMode('credits')}
             className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${mode === 'credits' ? 'bg-gray-800 text-white border border-gray-700' : 'text-gray-500'}`}
           >
@@ -176,13 +191,13 @@ useEffect(() => {
 
         {/* 🌎 LOCATION TOGGLE */}
         <div className="flex bg-gray-900 p-1.5 rounded-2xl mb-8 border border-gray-800">
-          <button 
+          <button
             onClick={() => setIsIndia(true)}
             className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all ${isIndia ? 'bg-red-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
           >
             🇮🇳 India
           </button>
-          <button 
+          <button
             onClick={() => setIsIndia(false)}
             className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all ${!isIndia ? 'bg-red-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
           >
@@ -194,8 +209,8 @@ useEffect(() => {
         <div className="text-center mb-8 p-6 bg-gray-900/50 rounded-3xl border border-gray-800/50">
           <div className="flex items-baseline justify-center gap-1">
             <span className="text-5xl font-black text-white tracking-tighter">
-              {mode === 'subscription' 
-                ? (isIndia ? '₹399' : '$8') 
+              {mode === 'subscription'
+                ? (isIndia ? '₹399' : '$8')
                 : '₹100'}
             </span>
             <span className="text-gray-500 font-medium">
@@ -211,19 +226,19 @@ useEffect(() => {
 
         {/* Features */}
         <ul className="space-y-4 mb-10">
-          {(mode === 'subscription' 
+          {(mode === 'subscription'
             ? [
-                '100 AI Content Credits',
-                'Advanced Lead Magnet AI',
-                'Full Content Calendar Access',
-                'No Watermarks on Assets'
-              ]
+              '100 AI Content Credits',
+              'Advanced Lead Magnet AI',
+              'Full Content Calendar Access',
+              'No Watermarks on Assets'
+            ]
             : [
-                '100 Instant AI Credits',
-                'One-time Purchase',
-                'Credits Never Expire',
-                'Instant Account Top-up'
-              ]
+              '100 Instant AI Credits',
+              'One-time Purchase',
+              'Credits Never Expire',
+              'Instant Account Top-up'
+            ]
           ).map((feat) => (
             <li key={feat} className="flex items-center gap-3 text-sm font-medium text-gray-300">
               <div className="bg-green-500/20 p-1 rounded-full">
@@ -235,14 +250,14 @@ useEffect(() => {
         </ul>
 
         {/* Action Button */}
-        <Button 
-          onClick={handlePayment} 
-         disabled={loading || !razorpayReady}
+        <Button
+          onClick={handlePayment}
+          disabled={loading || !razorpayReady}
           className="w-full bg-white hover:bg-gray-200 text-black h-14 rounded-2xl text-lg font-black italic tracking-tight shadow-xl shadow-red-500/10"
         >
-         {loading ? 'INITIALIZING...' : razorpayReady ? 'ACTIVATE PRO NOW' : 'LOADING PAYMENT...'}
+          {loading ? 'INITIALIZING...' : razorpayReady ? 'ACTIVATE PRO NOW' : 'LOADING PAYMENT...'}
         </Button>
-        
+
         <p className="text-[10px] text-center text-gray-600 mt-6 uppercase tracking-widest font-bold">
           SECURE 256-BIT ENCRYPTED PAYMENT
         </p>

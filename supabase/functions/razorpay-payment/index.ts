@@ -39,15 +39,27 @@ serve(async (req) => {
 
   try {
     // 2. Setup Razorpay & Supabase
+    const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID');
+    const razorpayKeySecret = Deno.env.get('RAZORPAY_KEY_SECRET');
+
+    if (!razorpayKeyId || !razorpayKeySecret) {
+      console.error("❌ MISSING RAZORPAY KEYS in Edge Function"); // Log to Supabase Dashboard
+      throw new Error("Server Misconfiguration: Missing Razorpay Keys");
+    }
+
     const razorpay = new Razorpay({
-      key_id: Deno.env.get('RAZORPAY_KEY_ID') || '',
-      key_secret: Deno.env.get('RAZORPAY_KEY_SECRET') || '',
+      key_id: razorpayKeyId,
+      key_secret: razorpayKeySecret,
     })
 
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("Server Misconfiguration: Missing Supabase Keys");
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseKey)
 
     // 3. Authenticate User
     const authHeader = req.headers.get('Authorization')
@@ -75,7 +87,7 @@ serve(async (req) => {
       }
 
       const order = await razorpay.orders.create(options)
-      return new Response(JSON.stringify(order), { 
+      return new Response(JSON.stringify(order), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200
       })
@@ -121,7 +133,7 @@ serve(async (req) => {
       if (!profile) throw new Error("Profile not found");
 
       // Add Credits & Subscribe
-// ✅ LOGIC UPDATE: Calculate Expiry based on Plan Type
+      // ✅ LOGIC UPDATE: Calculate Expiry based on Plan Type
       const updates: any = {
         credits: (profile.credits || 0) + selectedPlan.credits,
         is_subscribed: true
@@ -134,7 +146,7 @@ serve(async (req) => {
         const now = new Date();
         // If already active, add 30 days to the FUTURE expiry. If expired, add 30 days to NOW.
         const basisDate = currentExpiry > now ? currentExpiry : now;
-        const newExpiry = new Date(basisDate.getTime() + 30 * 24 * 60 * 60 * 1000); 
+        const newExpiry = new Date(basisDate.getTime() + 30 * 24 * 60 * 60 * 1000);
         updates.subscription_expiry = newExpiry.toISOString();
       }
 
@@ -154,9 +166,9 @@ serve(async (req) => {
         status: 'success'
       });
 
-      return new Response(JSON.stringify({ success: true, balance: updates.credits }), { 
+      return new Response(JSON.stringify({ success: true, balance: updates.credits }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200 
+        status: 200
       })
     }
 
