@@ -61,8 +61,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
     console.log("🔑 Auth Check:", !!authHeader ? "Present" : "Missing");
 
-    // Fix: The 'i' makes it case insensitive so 'bearer' works too
-    if (!authHeader?.match(/^Bearer /i)) {
+    if (!authHeader?.startsWith('Bearer ')) {
       throw new Error('Missing or invalid Authorization header');
     }
 
