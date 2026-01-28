@@ -88,9 +88,93 @@ export default function PricingModal({ user, onClose, initialMode = 'subscriptio
       }
 
       // 1. Get auth session and invoke Edge Function
+      // Note: We need to get a fresh session to get the access_token
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error("You must be logged in to make a payment");
+
+      if (!session?.access_token) {
+        // Fallback: If getSession() returns null, try to refresh the session
+        const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+
+        if (refreshError || !refreshedSession?.access_token) {
+          throw new Error("Could not get authentication token. Please log out and log in again.");
+        }
+
+        console.log("🚀 Invoking Edge Function with payload:", JSON.stringify(payload));
+
+        const { data, error } = await supabase.functions.invoke('razorpay-payment', {
+          body: payload,
+          headers: {
+            Authorization: `Bearer ${refreshedSession.access_token}`
+          }
+        });
+
+        if (error) {
+          console.error("❌ Edge Function Error:", error);
+          throw error;
+        }
+
+        console.log('📦 Order Data:', data);
+
+        // Continue with data processing...
+        if (!data || !data.id) {
+          throw new Error("Invalid order data received from server");
+        }
+
+        // Store the order data for later use in payment verification
+        const orderData = data;
+
+        // 2. Open Razorpay Checkout
+        const options = {
+          key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+          amount: orderData.amount,
+          currency: orderData.currency,
+          name: "Sasa AI",
+          description: mode === 'subscription'
+            ? (isIndia ? "Pro Plan - India" : "Pro Plan - Global")
+            : "100 AI Credits Top-up",
+          order_id: orderData.id,
+          handler: async (response: any) => {
+            // 3. Verify Payment
+            const verifyPayload: any = {
+              action: 'verify_payment',
+              payment_id: response.razorpay_payment_id,
+              order_id: response.razorpay_order_id,
+              signature: response.razorpay_signature,
+              user_id: user.id
+            };
+
+            if (mode === 'subscription') {
+              verifyPayload.plan = currentPlan;
+            } else {
+              verifyPayload.mode = mode;
+              verifyPayload.currency = isIndia ? 'INR' : 'USD';
+            }
+
+            const { error: verifyError } = await supabase.functions.invoke('razorpay-payment', {
+              body: verifyPayload,
+              headers: {
+                Authorization: `Bearer ${refreshedSession.access_token}`
+              }
+            });
+
+            if (verifyError) {
+              toast({ title: "Verification Failed", variant: "destructive" });
+            } else {
+              toast({ title: "Success!", description: "100 Credits added." });
+              onClose();
+              window.location.reload();
+            }
+          },
+          prefill: { email: user?.email },
+          theme: { color: "#ef4444" },
+          modal: {
+            ondismiss: () => setLoading(false)
+          }
+        };
+
+        const rzp = new (window as any).Razorpay(options);
+        rzp.open();
+        return; // Exit early since we processed with refreshed session
       }
 
       console.log("🚀 Invoking Edge Function with payload:", JSON.stringify(payload));
