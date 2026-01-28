@@ -150,6 +150,7 @@ export default function PricingModal({ user, onClose, initialMode = 'subscriptio
           const details = await err.context.json();
           if (details.error) errorMessage = details.error;
           if (details.details) errorMessage += `: ${details.details}`;
+          if (details.stack) console.error("📋 Server Stack Trace:", details.stack);
         } catch (e) {
           // fallback to message
         }

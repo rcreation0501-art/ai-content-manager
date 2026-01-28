@@ -1,5 +1,4 @@
 // Final Production Version - Razorpay Payment Handler
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0"
 import Razorpay from "npm:razorpay@2.9.2"
 import { crypto } from "https://deno.land/std@0.177.0/crypto/mod.ts";
@@ -15,7 +14,7 @@ const PLANS = {
     amount: 399,
     currency: 'INR',
     credits: 100,
-    type: 'subscription' // 👈 New field
+    type: 'subscription'
   },
   'credit_topup_100': {
     amount: 100,
@@ -23,7 +22,7 @@ const PLANS = {
     credits: 100,
     type: 'one_time'
   },
-  'credit_topup_global': {   // 👈 Global credits
+  'credit_topup_global': {
     amount: 2,
     currency: 'USD',
     credits: 100,
@@ -37,10 +36,10 @@ const PLANS = {
   }
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // 1. Handle CORS
   if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
@@ -49,7 +48,7 @@ serve(async (req) => {
     const razorpayKeySecret = Deno.env.get('RAZORPAY_KEY_SECRET');
 
     if (!razorpayKeyId || !razorpayKeySecret) {
-      console.error("❌ MISSING RAZORPAY KEYS in Edge Function"); // Log to Supabase Dashboard
+      console.error("❌ MISSING RAZORPAY KEYS");
       throw new Error("Server Misconfiguration: Missing Razorpay Keys");
     }
 
@@ -80,73 +79,56 @@ serve(async (req) => {
     const body = await req.json()
     console.log("📥 Incoming Request Body:", JSON.stringify(body));
 
-    const { action, mode, plan, payment_id, order_id, signature, amount, currency } = body
+    const { action, mode, plan, payment_id, order_id, signature, currency } = body
 
-    // Normalize plan for credit top-ups
     // ==========================================
     // 1. STRICT PLAN SELECTION LOGIC
     // ==========================================
     let effectivePlanKey = plan;
 
-    // Force Credit Plan if mode is 'credits', ignoring any subscription plan sent by mistake
+    // Force Credit Plan if mode is 'credits'
     if (mode === 'credits') {
       effectivePlanKey = (currency === 'USD') ? 'credit_topup_global' : 'credit_topup_100';
     }
-    // Default to Subscription if missing
-    else if (!effectivePlanKey) {
+    // Default to Subscription if missing or invalid
+    else if (!effectivePlanKey || !PLANS[effectivePlanKey as keyof typeof PLANS]) {
       effectivePlanKey = (currency === 'USD') ? 'pro_monthly_usd' : 'pro_monthly';
     }
 
     const selectedPlan = PLANS[effectivePlanKey as keyof typeof PLANS];
 
     if (!selectedPlan) {
-      console.error("❌ Invalid Plan:", effectivePlanKey);
+      console.error("❌ Invalid Plan after normalization:", effectivePlanKey);
       throw new Error(`Invalid plan selection: ${effectivePlanKey}`);
     }
-
 
     // ==========================================
     // ACTION: CREATE ORDER
     // ==========================================
     if (action === 'create_order') {
       try {
-        if (mode === 'credits' || plan?.startsWith('credit_topup')) {
-          // --- CREDIT TOP-UP BRANCH ---
-          const targetPlan = selectedPlan || PLANS['credit_topup_100'];
-          const finalAmount = Number(targetPlan.amount);
-          const finalCurrency = targetPlan.currency;
+        const isOneTime = mode === 'credits' || effectivePlanKey.startsWith('credit_topup');
 
-          const options = {
-            amount: Math.round(finalAmount * 100), // Ensure smallest unit (paise/cents)
-            currency: finalCurrency,
-            receipt: `rcpt_credits_${user.id.slice(0, 8)}_${Date.now()}`,
-            notes: {
-              type: "credit_topup",
-              userId: user.id,
-              plan_id: plan || 'custom'
-            }
+        const options = {
+          amount: Math.round(selectedPlan.amount * 100),
+          currency: selectedPlan.currency,
+          receipt: isOneTime
+            ? `rcpt_credits_${user.id.slice(0, 8)}_${Date.now()}`
+            : `rcpt_sub_${user.id.slice(0, 8)}_${Date.now()}`,
+          notes: {
+            type: isOneTime ? "credit_topup" : "subscription",
+            userId: user.id,
+            plan_id: effectivePlanKey
           }
-
-          const order = await razorpay.orders.create(options)
-          return new Response(JSON.stringify(order), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200
-          })
-        } else {
-          // --- SUBSCRIPTION BRANCH (Existing Logic) ---
-          const options = {
-            amount: selectedPlan.amount * 100,
-            currency: selectedPlan.currency,
-            receipt: `receipt_${user.id.slice(0, 8)}_${Date.now()}`,
-            notes: { user_id: user.id, plan_id: plan }
-          }
-
-          const order = await razorpay.orders.create(options)
-          return new Response(JSON.stringify(order), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200
-          })
         }
+
+        console.log("🔧 Creating Razorpay Order with options:", JSON.stringify(options));
+        const order = await razorpay.orders.create(options)
+
+        return new Response(JSON.stringify(order), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        })
       } catch (rzpError: any) {
         console.error("❌ Razorpay Order API Error:", rzpError);
         return new Response(JSON.stringify({
@@ -167,7 +149,7 @@ serve(async (req) => {
         throw new Error("Incomplete payment data");
       }
 
-      // Check for Replay Attack (Double counting)
+      // 1. Check for Replay Attack
       const { data: existingTx } = await supabaseAdmin
         .from('payment_transactions')
         .select('id')
@@ -176,9 +158,9 @@ serve(async (req) => {
 
       if (existingTx) throw new Error("Payment already processed");
 
-      // Verify Signature
+      // 2. Verify Signature
       const text = order_id + "|" + payment_id
-      const secret = Deno.env.get('RAZORPAY_KEY_SECRET') || ""
+      const secret = razorpayKeySecret
       const encoder = new TextEncoder()
       const keyData = encoder.encode(secret)
       const msgData = encoder.encode(text)
@@ -192,25 +174,24 @@ serve(async (req) => {
 
       if (generated_signature !== signature) throw new Error("Invalid Signature")
 
-      // Fetch User Profile
+      // 3. Fetch User Profile
       const { data: profile } = await supabaseAdmin
-        .from('profiles').select('credits, subscription_expiry').eq('id', user.id).maybeSingle();
+        .from('profiles')
+        .select('credits, subscription_expiry')
+        .eq('id', user.id)
+        .maybeSingle();
 
       if (!profile) throw new Error("Profile not found");
 
-      // Add Credits & Subscribe
-      // ✅ LOGIC UPDATE: Calculate Expiry based on Plan Type
+      // 4. Apply Credits & Subscription
       const updates: any = {
         credits: (profile.credits || 0) + selectedPlan.credits,
         is_subscribed: true
       };
 
-      // Only extend date if it is a SUBSCRIPTION type
-      // @ts-ignore
       if (selectedPlan.type === 'subscription') {
         const currentExpiry = profile.subscription_expiry ? new Date(profile.subscription_expiry) : new Date();
         const now = new Date();
-        // If already active, add 30 days to the FUTURE expiry. If expired, add 30 days to NOW.
         const basisDate = currentExpiry > now ? currentExpiry : now;
         const newExpiry = new Date(basisDate.getTime() + 30 * 24 * 60 * 60 * 1000);
         updates.subscription_expiry = newExpiry.toISOString();
@@ -222,7 +203,7 @@ serve(async (req) => {
 
       if (updateError) throw updateError;
 
-      // Record Transaction
+      // 5. Record Transaction
       await supabaseAdmin.from('payment_transactions').insert({
         user_id: user.id,
         payment_id: payment_id,
@@ -244,8 +225,11 @@ serve(async (req) => {
     });
 
   } catch (error: any) {
-    console.error("Payment Error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error("💥 Function Error:", error);
+    return new Response(JSON.stringify({
+      error: error.message,
+      stack: error.stack
+    }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
